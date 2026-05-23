@@ -98,8 +98,12 @@ const GE = {
     },
 
     iconUrl(item) {
+        if (!item || !item.id) return '';
+        return 'icons/' + item.id + '.png';
+    },
+
+    wikiIconUrl(item) {
         if (!item || !item.icon) return '';
-        // Wiki expects underscores for spaces in Special:FilePath
         return this.WIKI_IMG + item.icon.replace(/ /g, '_');
     },
 
@@ -107,24 +111,10 @@ const GE = {
         const letter = el.dataset.letter || '?';
         const w = el.width || 28;
         const h = el.height || 28;
-        const retries = parseInt(el.dataset.retried || '0');
-        // Save original underscore URL on first error
-        if (!el.dataset.origSrc) el.dataset.origSrc = el.src;
-        // Retry 1: try encodeURIComponent version
-        if (retries === 0 && el.src.includes('Special:FilePath')) {
-            el.dataset.retried = '1';
-            el.src = el.src.replace(/Special:FilePath\/(.+)$/, (m, name) =>
-                'Special:FilePath/' + encodeURIComponent(name.replace(/_/g, ' '))
-            );
-            return;
-        }
-        // Retries 2-4: wiki CDN rate-limits concurrent requests; retry original URL with staggered delay
-        if (retries < 5) {
-            el.dataset.retried = String(retries + 1);
-            const src = el.dataset.origSrc;
-            el.removeAttribute('src');
-            const jitter = Math.random() * 500;
-            setTimeout(() => { el.src = src; }, 600 * retries + jitter);
+        // If local icon failed, try Wiki CDN as fallback
+        if (el.dataset.wikiSrc && !el.dataset.triedWiki) {
+            el.dataset.triedWiki = '1';
+            el.src = el.dataset.wikiSrc;
             return;
         }
         el.outerHTML = `<span class="item-icon-fallback" style="width:${w}px;height:${h}px">${letter}</span>`;
@@ -133,9 +123,10 @@ const GE = {
     imgTag(item, size) {
         size = size || 28;
         const src = this.iconUrl(item);
+        const wikiSrc = this.wikiIconUrl(item);
         const letter = item && item.name ? item.name[0] : '?';
         if (!src) return `<span class="item-icon-fallback" style="width:${size}px;height:${size}px">${letter}</span>`;
-        return `<img src="${src}" width="${size}" height="${size}" class="item-icon" loading="lazy" data-letter="${letter}" onerror="GE.onImgError(this)" alt="">`;
+        return `<img src="${src}" width="${size}" height="${size}" class="item-icon" loading="lazy" data-letter="${letter}" data-wiki-src="${wikiSrc}" onerror="GE.onImgError(this)" alt="">`;
     },
 
     parseGp(str) {

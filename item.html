@@ -115,7 +115,7 @@
                 document.getElementById('heroSection').innerHTML = `
                     <div class="item-hero">
                         <div class="hero-icon">
-                            <img src="${GE.iconUrl(meta)}" width="56" height="56" data-letter="${meta.name[0]}" onerror="GE.onImgError(this)" alt="">
+                            <img src="${GE.iconUrl(meta)}" width="56" height="56" data-letter="${meta.name[0]}" data-wiki-src="${GE.wikiIconUrl(meta)}" onerror="GE.onImgError(this)" alt="">
                         </div>
                         <div class="hero-info">
                             <div class="hero-name">${meta.name}</div>
