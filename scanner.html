@@ -231,6 +231,18 @@
         #resultsTable th.sorted.asc::after {
             content: ' ▴';
         }
+
+        @media (max-width: 600px) {
+            .scan-panel { padding: 16px; }
+            .scan-row { gap: 12px; }
+            .scan-field { flex: 1; min-width: 0; }
+            .scan-field input[type="number"],
+            .scan-field input[type="text"] { width: 100%; }
+            .scan-actions { flex-direction: column; align-items: stretch; }
+            .btn-scan { width: 100%; text-align: center; }
+            .btn-export { width: 100%; text-align: center; }
+            .results-header { flex-direction: column; gap: 8px; align-items: flex-start; }
+        }
     </style>
 </head>
 <body>
