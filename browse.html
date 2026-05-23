@@ -391,7 +391,7 @@
                 return `
                 <div class="item-card" onclick="location.href='item.html?id=${i.id}&days=' + document.getElementById('periodSelect').value">
                     <div class="icon-wrap">
-                        <img src="${GE.iconUrl(i.meta)}" width="32" height="32" loading="lazy" data-letter="${i.meta.name[0]}" onerror="GE.onImgError(this)" alt="">
+                        <img src="${GE.iconUrl(i.meta)}" width="32" height="32" loading="lazy" data-letter="${i.meta.name[0]}" data-wiki-src="${GE.wikiIconUrl(i.meta)}" onerror="GE.onImgError(this)" alt="">
                     </div>
                     <div class="info">
                         <div class="name">${i.meta.name}</div>
