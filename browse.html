@@ -1,0 +1,444 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GE Scanner — Browse Items</title>
+    <link rel="preconnect" href="https://prices.runescape.wiki">
+    <link rel="preconnect" href="https://oldschool.runescape.wiki">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link rel="preload" href="js/api.js" as="script">
+    <link rel="preload" href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" as="style">
+    <link rel="stylesheet" href="css/style.css">
+    <script>
+        window.__gePreload = {
+            mapping: fetch('https://prices.runescape.wiki/api/v1/osrs/mapping').then(r => r.json()),
+            latest: fetch('https://prices.runescape.wiki/api/v1/osrs/latest').then(r => r.json())
+        };
+    </script>
+</head>
+<body>
+    <div id="nav"></div>
+    <div class="page">
+        <div class="page-header">
+            <h1 class="page-title">Browse Items</h1>
+            <p class="page-subtitle">Search and filter all Old School RuneScape tradeable items</p>
+        </div>
+
+        <div class="search-bar">
+            <input type="text" id="searchInput" placeholder="Search by item name...">
+        </div>
+
+        <div class="controls">
+            <div class="control-group">
+                <span class="control-label">View:</span>
+                <select id="viewMode">
+                    <option value="all">All Items</option>
+                    <option value="gainers">Top Gainers</option>
+                    <option value="losers">Top Losers</option>
+                    <option value="volume">Unusual Volume</option>
+                    <option value="52high">52-Week Highs</option>
+                    <option value="52low">52-Week Lows</option>
+                </select>
+            </div>
+            <div class="control-group" id="periodGroup">
+                <span class="control-label">Lookback:</span>
+                <select id="periodSelect">
+                    <option value="1">24H</option>
+                    <option value="7">7D</option>
+                    <option value="30">30D</option>
+                    <option value="60">60D</option>
+                    <option value="90">90D</option>
+                    <option value="180">6M</option>
+                    <option value="365">1Y</option>
+                </select>
+            </div>
+            <div class="control-group">
+                <span class="control-label">Filter:</span>
+                <select id="memberFilter">
+                    <option value="all">All Items</option>
+                    <option value="members">Members</option>
+                    <option value="f2p">F2P</option>
+                </select>
+            </div>
+            <div class="control-group">
+                <span class="control-label">Min Price:</span>
+                <input type="text" id="minPrice" value="0" placeholder="e.g. 100k">
+            </div>
+            <div class="control-group">
+                <span class="control-label">Sort:</span>
+                <select id="sortBy">
+                    <option value="name">Name</option>
+                    <option value="price-desc">Price (High)</option>
+                    <option value="price-asc">Price (Low)</option>
+                    <option value="volume-desc">Volume (High)</option>
+                    <option value="change-desc">Change (Best)</option>
+                    <option value="change-asc">Change (Worst)</option>
+                </select>
+            </div>
+            <div class="control-group" style="margin-left:auto">
+                <span id="resultCount" class="control-label" style="color:var(--text-muted)"></span>
+            </div>
+        </div>
+
+        <div id="viewStatus" style="display:none"></div>
+
+        <div id="itemGrid" class="grid-items">
+            <div class="loading" style="grid-column:1/-1"><div class="spinner"></div>Loading items...</div>
+        </div>
+
+        <div class="pagination" id="pagination"></div>
+    </div>
+
+    <script src="js/api.js"></script>
+    <script>
+        document.getElementById('nav').innerHTML = GE.navHTML('Browse');
+        GE.initAutocomplete();
+
+        let allItems = [];
+        let filtered = [];
+        let currentPage = 1;
+        const PER_PAGE = 60;
+
+        let _mapping, _hourly, _latest;
+        let _viewCache = {};
+        let _currentView = 'all';
+
+        (async function () {
+            try {
+                const [mapping, latestData, hourData] = await Promise.all([
+                    GE.getMapping(),
+                    GE.getLatest(),
+                    GE.get1h()
+                ]);
+
+                _mapping = mapping;
+                _latest = latestData.data || latestData;
+                _hourly = hourData.data || hourData;
+
+                Object.values(mapping).forEach(meta => {
+                    const l = _latest[meta.id];
+                    const h = _hourly[meta.id];
+                    const price = l ? (l.high || l.low || 0) : 0;
+                    const vol = h ? ((h.highPriceVolume || 0) + (h.lowPriceVolume || 0)) : 0;
+
+                    allItems.push({
+                        id: meta.id, meta, price, vol,
+                        change: 0, volRatio: 0,
+                        yearHigh: null, yearLow: null,
+                        highDaysAgo: null, lowDaysAgo: null
+                    });
+                });
+
+                const params = new URLSearchParams(location.search);
+                if (params.get('q')) document.getElementById('searchInput').value = params.get('q');
+                if (params.get('view')) {
+                    document.getElementById('viewMode').value = params.get('view');
+                }
+
+                bindEvents();
+                await switchView();
+            } catch (err) {
+                document.getElementById('itemGrid').innerHTML =
+                    `<div class="error-msg" style="grid-column:1/-1">Failed to load: ${err.message}</div>`;
+            }
+        })();
+
+        function bindEvents() {
+            let debounce;
+            document.getElementById('searchInput').addEventListener('input', () => {
+                clearTimeout(debounce);
+                debounce = setTimeout(() => { currentPage = 1; applyFilters(); }, 200);
+            });
+            ['memberFilter', 'minPrice', 'sortBy'].forEach(id => {
+                document.getElementById(id).addEventListener('change', () => { currentPage = 1; applyFilters(); });
+            });
+            document.getElementById('viewMode').addEventListener('change', () => switchView());
+            document.getElementById('periodSelect').addEventListener('change', () => switchView());
+        }
+
+        async function switchView() {
+            const view = document.getElementById('viewMode').value;
+            const period = parseInt(document.getElementById('periodSelect').value);
+            _currentView = view;
+
+
+            if (view === 'all') {
+                allItems.forEach(i => { i.change = 0; i.volRatio = 0; });
+                currentPage = 1;
+                applyFilters();
+                return;
+            }
+
+            if (view === 'gainers' || view === 'losers' || view === 'volume') {
+                await loadMoverData(period);
+                return;
+            }
+
+            if (view === '52high' || view === '52low') {
+                await load52WeekData();
+                return;
+            }
+        }
+
+        async function loadMoverData(days) {
+            const cacheKey = 'movers_' + days;
+            const status = document.getElementById('viewStatus');
+
+            if (!_viewCache[cacheKey]) {
+                status.style.display = '';
+                status.innerHTML = '<div class="card"><div class="loading"><div class="spinner"></div>Fetching ' + (days === 1 ? '24h' : days + 'D') + ' comparison data...</div></div>';
+
+                const ago = Math.floor(Date.now() / 1000) - (days * 86400);
+                const aligned = ago - (ago % 3600);
+                const prevData = await GE.get1h(aligned);
+                _viewCache[cacheKey] = prevData.data || prevData;
+            }
+
+            const prev = _viewCache[cacheKey];
+            allItems.forEach(i => {
+                const n = _hourly[i.id];
+                const p = prev[i.id];
+                const curPrice = n ? (n.avgHighPrice || n.avgLowPrice || 0) : 0;
+                const prevPrice = p ? (p.avgHighPrice || p.avgLowPrice || 0) : 0;
+                const curVol = n ? ((n.highPriceVolume || 0) + (n.lowPriceVolume || 0)) : 0;
+                const prevVol = p ? ((p.highPriceVolume || 0) + (p.lowPriceVolume || 0)) : 0;
+
+                i.change = (prevPrice > 0) ? ((curPrice - prevPrice) / prevPrice) * 100 : 0;
+                i.volRatio = (prevVol > 0) ? curVol / prevVol : 0;
+            });
+
+            status.style.display = 'none';
+            currentPage = 1;
+            applyFilters();
+        }
+
+        async function load52WeekData() {
+            if (_viewCache['52week']) {
+                currentPage = 1;
+                applyFilters();
+                return;
+            }
+
+            // Check sessionStorage for cached 52-week results
+            const cached = GE.load52WeekCache();
+            if (cached) {
+                cached.forEach(ci => {
+                    const idx = allItems.findIndex(a => String(a.id) === String(ci.id));
+                    if (idx !== -1) {
+                        allItems[idx].yearHigh = ci.yh;
+                        allItems[idx].yearLow = ci.yl;
+                        allItems[idx].highDaysAgo = ci.hd;
+                        allItems[idx].lowDaysAgo = ci.ld;
+                    }
+                });
+                _viewCache['52week'] = true;
+                currentPage = 1;
+                applyFilters();
+                return;
+            }
+
+            const status = document.getElementById('viewStatus');
+            status.style.display = '';
+
+            const byVolume = allItems
+                .filter(i => i.price >= 200 && i.vol >= 20)
+                .sort((a, b) => b.vol - a.vol)
+                .slice(0, 250);
+            const highValue = allItems
+                .filter(i => i.price >= 100000 && !byVolume.some(v => v.id === i.id));
+            const ranked = [...byVolume, ...highValue];
+
+            const nowSec = Math.floor(Date.now() / 1000);
+            const BATCH = 10;
+            let done = 0;
+            const cacheEntries = [];
+
+            status.innerHTML = `<div class="card"><div class="loading"><div class="spinner"></div>Scanning 0 / ${ranked.length} items for 52-week data...<div style="margin-top:12px;background:rgba(255,255,255,0.06);border-radius:8px;height:6px;overflow:hidden"><div id="weekProgress" style="height:100%;background:rgba(255,255,255,0.6);border-radius:8px;width:0;transition:width 0.3s"></div></div></div></div>`;
+
+            for (let i = 0; i < ranked.length; i += BATCH) {
+                const batch = ranked.slice(i, i + BATCH);
+                const results = await Promise.all(
+                    batch.map(async item => {
+                        try {
+                            const ts = await GE.getTimeseries(item.id, '24h');
+                            return { item, data: ts.data || [] };
+                        } catch { return { item, data: [] }; }
+                    })
+                );
+
+                results.forEach(({ item, data }) => {
+                    if (data.length < 30) return;
+                    let yh = -Infinity, yl = Infinity, yhDate = 0, ylDate = 0;
+                    data.forEach(d => {
+                        const p = d.avgHighPrice;
+                        if (!p) return;
+                        if (p >= yh) { yh = p; yhDate = d.timestamp; }
+                        if (p <= yl) { yl = p; ylDate = d.timestamp; }
+                    });
+                    if (yh === -Infinity) return;
+
+                    const idx = allItems.findIndex(a => a.id === item.id);
+                    if (idx === -1) return;
+                    const hd = Math.floor((nowSec - yhDate) / 86400);
+                    const ld = Math.floor((nowSec - ylDate) / 86400);
+                    allItems[idx].yearHigh = yh;
+                    allItems[idx].yearLow = yl;
+                    allItems[idx].highDaysAgo = hd;
+                    allItems[idx].lowDaysAgo = ld;
+                    cacheEntries.push({ id: item.id, yh, yl, hd, ld });
+                });
+
+                done += batch.length;
+                const pct = Math.round((done / ranked.length) * 100);
+                const prog = document.getElementById('weekProgress');
+                if (prog) prog.style.width = pct + '%';
+                await new Promise(r => setTimeout(r, 200));
+            }
+
+            // Save to sessionStorage for other pages
+            GE.save52WeekCache(cacheEntries);
+
+            _viewCache['52week'] = true;
+            status.style.display = 'none';
+            currentPage = 1;
+            applyFilters();
+        }
+
+        function applyFilters() {
+            const q = document.getElementById('searchInput').value.toLowerCase().trim();
+            const memberFilter = document.getElementById('memberFilter').value;
+            const minPrice = GE.parseGp(document.getElementById('minPrice').value);
+            const sortBy = document.getElementById('sortBy').value;
+            const view = _currentView;
+            const period = parseInt(document.getElementById('periodSelect').value);
+
+            filtered = allItems.filter(i => {
+                if (q && !i.meta.name.toLowerCase().includes(q)) return false;
+                if (memberFilter === 'members' && !i.meta.members) return false;
+                if (memberFilter === 'f2p' && i.meta.members) return false;
+                if (i.price < minPrice) return false;
+
+                if (view === 'gainers') return i.change > 0 && i.vol >= 10;
+                if (view === 'losers') return i.change < 0 && i.vol >= 10;
+                if (view === 'volume') return i.volRatio > 1.5 && i.vol >= 10;
+                if (view === '52high') return i.yearHigh !== null && i.price >= i.yearHigh * 0.95 && i.highDaysAgo !== null && i.highDaysAgo <= period;
+                if (view === '52low') return i.yearLow !== null && i.price <= i.yearLow * 1.05 && i.lowDaysAgo !== null && i.lowDaysAgo <= period;
+
+                return true;
+            });
+
+            switch (view) {
+                case 'gainers': if (sortBy === 'name') filtered.sort((a, b) => b.change - a.change); break;
+                case 'losers': if (sortBy === 'name') filtered.sort((a, b) => a.change - b.change); break;
+                case 'volume': if (sortBy === 'name') filtered.sort((a, b) => b.volRatio - a.volRatio); break;
+                case '52high': if (sortBy === 'name') filtered.sort((a, b) => a.highDaysAgo - b.highDaysAgo); break;
+                case '52low': if (sortBy === 'name') filtered.sort((a, b) => a.lowDaysAgo - b.lowDaysAgo); break;
+            }
+
+            if (view !== 'all' && sortBy === 'name') {
+                // already sorted by relevance above
+            } else {
+                switch (sortBy) {
+                    case 'name': filtered.sort((a, b) => a.meta.name.localeCompare(b.meta.name)); break;
+                    case 'price-desc': filtered.sort((a, b) => b.price - a.price); break;
+                    case 'price-asc': filtered.sort((a, b) => a.price - b.price); break;
+                    case 'volume-desc': filtered.sort((a, b) => b.vol - a.vol); break;
+                    case 'change-desc': filtered.sort((a, b) => b.change - a.change); break;
+                    case 'change-asc': filtered.sort((a, b) => a.change - b.change); break;
+                }
+            }
+
+            document.getElementById('resultCount').textContent = `${filtered.length} items`;
+            renderPage();
+        }
+
+        function renderPage() {
+            const view = _currentView;
+            const totalPages = Math.ceil(filtered.length / PER_PAGE);
+            if (currentPage > totalPages) currentPage = totalPages || 1;
+
+            const start = (currentPage - 1) * PER_PAGE;
+            const slice = filtered.slice(start, start + PER_PAGE);
+
+            const grid = document.getElementById('itemGrid');
+            if (!slice.length) {
+                grid.innerHTML = '<div class="status-msg" style="grid-column:1/-1">No items match your filters.</div>';
+                document.getElementById('pagination').innerHTML = '';
+                return;
+            }
+
+            grid.innerHTML = slice.map(i => {
+                let rightTop = `${GE.fmtGp(i.price)} gp`;
+                let rightBottom = `Vol: ${GE.fmtGp(i.vol)}`;
+                let rightClass = '';
+
+                if (view === 'gainers' || view === 'losers') {
+                    rightBottom = `<span class="${GE.pctClass(i.change)}">${GE.fmtPct(i.change)}</span>`;
+                } else if (view === 'volume') {
+                    rightBottom = `<span class="${i.volRatio > 2 ? 'positive' : 'neutral'}">${i.volRatio.toFixed(1)}x vol</span>`;
+                } else if (view === '52high') {
+                    const d = i.highDaysAgo;
+                    const when = d === 0 ? 'Today' : d === 1 ? 'Yesterday' : d + 'd ago';
+                    rightBottom = `<span class="positive">52W High · ${when}</span>`;
+                } else if (view === '52low') {
+                    const d = i.lowDaysAgo;
+                    const when = d === 0 ? 'Today' : d === 1 ? 'Yesterday' : d + 'd ago';
+                    rightBottom = `<span class="negative">52W Low · ${when}</span>`;
+                }
+
+                return `
+                <div class="item-card" onclick="location.href='item.html?id=${i.id}&days=' + document.getElementById('periodSelect').value">
+                    <div class="icon-wrap">
+                        <img src="${GE.iconUrl(i.meta)}" width="32" height="32" loading="lazy" data-letter="${i.meta.name[0]}" onerror="GE.onImgError(this)" alt="">
+                    </div>
+                    <div class="info">
+                        <div class="name">${i.meta.name}</div>
+                        <div class="meta">${i.meta.members ? 'P2P' : 'F2P'}${i.meta.limit ? ' · Lim: ' + GE.fmtGp(i.meta.limit) : ''}</div>
+                    </div>
+                    <div class="price-col">
+                        <div class="price">${rightTop}</div>
+                        <div class="meta">${rightBottom}</div>
+                    </div>
+                </div>`;
+            }).join('');
+
+            renderPagination(totalPages);
+        }
+
+        function renderPagination(totalPages) {
+            if (totalPages <= 1) { document.getElementById('pagination').innerHTML = ''; return; }
+
+            let btns = '';
+            btns += `<button ${currentPage === 1 ? 'disabled' : ''} onclick="goPage(${currentPage - 1})">Prev</button>`;
+
+            const range = [];
+            for (let p = 1; p <= totalPages; p++) {
+                if (p === 1 || p === totalPages || (p >= currentPage - 2 && p <= currentPage + 2)) {
+                    range.push(p);
+                } else if (range[range.length - 1] !== '...') {
+                    range.push('...');
+                }
+            }
+
+            range.forEach(p => {
+                if (p === '...') {
+                    btns += `<span class="page-info">...</span>`;
+                } else {
+                    btns += `<button class="${p === currentPage ? 'active' : ''}" onclick="goPage(${p})">${p}</button>`;
+                }
+            });
+
+            btns += `<button ${currentPage === totalPages ? 'disabled' : ''} onclick="goPage(${currentPage + 1})">Next</button>`;
+            document.getElementById('pagination').innerHTML = btns;
+        }
+
+        function goPage(p) {
+            currentPage = p;
+            renderPage();
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+        }
+    </script>
+</body>
+</html>

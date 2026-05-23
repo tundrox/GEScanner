@@ -1,0 +1,475 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GE Scanner — Item Detail</title>
+    <link rel="preconnect" href="https://prices.runescape.wiki">
+    <link rel="preconnect" href="https://oldschool.runescape.wiki">
+    <link rel="preconnect" href="https://cdn.jsdelivr.net">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link rel="preload" href="js/api.js" as="script">
+    <link rel="preload" href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" as="style">
+    <link rel="stylesheet" href="css/style.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns"></script>
+    <script>
+        // Start API + timeseries fetches immediately
+        const __params = new URLSearchParams(location.search);
+        const __itemId = __params.get('id');
+        const __days = parseInt(__params.get('days')) || 30;
+        const __timestep = __days <= 15 ? '1h' : __days <= 90 ? '6h' : '24h';
+        window.__gePreload = {
+            mapping: fetch('https://prices.runescape.wiki/api/v1/osrs/mapping').then(r => r.json()),
+            latest: fetch('https://prices.runescape.wiki/api/v1/osrs/latest').then(r => r.json()),
+            timeseries: __itemId ? fetch(`https://prices.runescape.wiki/api/v1/osrs/timeseries?id=${__itemId}&timestep=${__timestep}`).then(r => r.json()) : null
+        };
+    </script>
+</head>
+<body>
+    <div id="nav"></div>
+    <div class="page">
+        <div id="heroSection">
+            <div class="loading"><div class="spinner"></div>Loading item...</div>
+        </div>
+
+        <div class="stats-row" id="priceStats" style="display:none"></div>
+
+        <div class="chart-glow">
+        <div class="card" id="chartCard" style="display:none;margin-bottom:24px">
+            <div class="card-header">
+                <span class="card-title">Price History</span>
+                <div class="tf-tabs" id="chartTabs">
+                    <button class="tf-tab" data-days="1">1D</button>
+                    <button class="tf-tab" data-days="7">7D</button>
+                    <button class="tf-tab" data-days="30">30D</button>
+                    <button class="tf-tab" data-days="60">60D</button>
+                    <button class="tf-tab" data-days="90">90D</button>
+                    <button class="tf-tab" data-days="365">1Y</button>
+                </div>
+            </div>
+            <div class="chart-wrap">
+                <canvas id="priceChart"></canvas>
+            </div>
+        </div>
+        </div>
+
+        <div class="card" id="volChartCard" style="display:none;margin-bottom:24px">
+            <div class="card-header">
+                <span class="card-title">Volume History</span>
+                <span class="card-badge" style="background:rgba(34,197,94,0.15);color:#22c55e;font-size:0.65rem">Buy</span>
+                <span class="card-badge" style="background:rgba(239,68,68,0.12);color:#ef4444;font-size:0.65rem">Sell</span>
+            </div>
+            <div class="chart-wrap" style="height:220px">
+                <canvas id="volChart"></canvas>
+            </div>
+        </div>
+
+        <div class="grid-2" id="detailCards" style="display:none">
+            <div class="card" id="infoCard"></div>
+            <div class="card" id="alchCard"></div>
+        </div>
+    </div>
+
+    <script src="js/api.js"></script>
+    <script>
+        document.getElementById('nav').innerHTML = GE.navHTML('');
+        GE.initAutocomplete();
+
+        const params = new URLSearchParams(location.search);
+        const itemId = params.get('id');
+        const validDays = [1, 7, 30, 60, 90, 365];
+        const defaultDays = validDays.includes(parseInt(params.get('days'))) ? parseInt(params.get('days')) : 30;
+        if (!itemId) { document.getElementById('heroSection').innerHTML = '<div class="error-msg">No item ID provided. <a href="browse.html">Browse items</a></div>'; }
+
+        // Set the active tab based on URL param
+        document.querySelectorAll('#chartTabs .tf-tab').forEach(b => {
+            b.classList.toggle('active', parseInt(b.dataset.days) === defaultDays);
+        });
+
+        let priceChart = null;
+        let volChart = null;
+        let cachedSeries = {};
+
+        (async function () {
+            if (!itemId) return;
+            try {
+                const [mapping, latestData] = await Promise.all([
+                    GE.getMapping(),
+                    GE.getLatest()
+                ]);
+
+                const meta = mapping[itemId];
+                if (!meta) {
+                    document.getElementById('heroSection').innerHTML = '<div class="error-msg">Item not found. <a href="browse.html">Browse items</a></div>';
+                    return;
+                }
+
+                const latest = (latestData.data || latestData)[itemId];
+                const buyPrice = latest ? latest.high : null;
+                const sellPrice = latest ? latest.low : null;
+
+                document.title = `${meta.name} — GE Scanner`;
+
+                document.getElementById('heroSection').innerHTML = `
+                    <div class="item-hero">
+                        <div class="hero-icon">
+                            <img src="${GE.iconUrl(meta)}" width="56" height="56" data-letter="${meta.name[0]}" onerror="GE.onImgError(this)" alt="">
+                        </div>
+                        <div class="hero-info">
+                            <div class="hero-name">${meta.name}</div>
+                            <div class="hero-examine">${meta.examine || ''}</div>
+                            <div class="hero-tags">
+                                <span class="tag ${meta.members ? 'tag-members' : 'tag-f2p'}">${meta.members ? 'Members' : 'F2P'}</span>
+                                ${meta.limit ? `<span class="tag">Limit: ${meta.limit}</span>` : ''}
+                                <span class="tag">ID: ${meta.id}</span>
+                            </div>
+                        </div>
+                    </div>
+                `;
+
+                const margin = buyPrice && sellPrice ? buyPrice - sellPrice : null;
+                const marginPct = margin && buyPrice ? ((margin / buyPrice) * 100).toFixed(1) : null;
+                const flipProfit = margin && meta.limit ? margin * meta.limit : null;
+
+                document.getElementById('priceStats').style.display = '';
+                document.getElementById('priceStats').innerHTML = `
+                    <div class="stat-card">
+                        <div class="stat-value" style="color:var(--green);text-shadow:0 0 14px rgba(34,197,94,0.4)">${buyPrice ? GE.fmtGp(buyPrice) : '—'}</div>
+                        <div class="stat-label">Instant Buy</div>
+                        ${buyPrice ? `<div class="stat-sub">${buyPrice.toLocaleString()} gp</div>` : ''}
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-value" style="color:var(--red);text-shadow:0 0 14px rgba(239,68,68,0.4)">${sellPrice ? GE.fmtGp(sellPrice) : '—'}</div>
+                        <div class="stat-label">Instant Sell</div>
+                        ${sellPrice ? `<div class="stat-sub">${sellPrice.toLocaleString()} gp</div>` : ''}
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-value" style="color:var(--blue);text-shadow:0 0 14px rgba(59,130,246,0.4)">${margin ? GE.fmtGp(margin) : '—'}</div>
+                        <div class="stat-label">Margin</div>
+                        ${marginPct ? `<div class="stat-sub">${marginPct}% spread</div>` : ''}
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-value" style="color:#ffffff;text-shadow:0 0 14px rgba(255,255,255,0.2)">${meta.limit ? meta.limit.toLocaleString() : '—'}</div>
+                        <div class="stat-label">Buy Limit</div>
+                        ${flipProfit ? `<div class="stat-sub">Flip: ${GE.fmtGp(flipProfit)} gp</div>` : ''}
+                    </div>
+                    <div class="stat-card" id="statChange">
+                        <div class="stat-value" style="text-shadow:0 0 14px rgba(255,255,255,0.15)">—</div>
+                        <div class="stat-label">Period Change</div>
+                    </div>
+                `;
+
+                document.getElementById('detailCards').style.display = '';
+                document.getElementById('infoCard').innerHTML = `
+                    <div class="card-header"><span class="card-title">Item Info</span></div>
+                    <table>
+                        <tr><td style="color:var(--text-secondary)">Name</td><td>${meta.name}</td></tr>
+                        <tr><td style="color:var(--text-secondary)">Members</td><td>${meta.members ? 'Yes' : 'No'}</td></tr>
+                        <tr><td style="color:var(--text-secondary)">Buy Limit</td><td>${meta.limit || 'Unknown'}</td></tr>
+                        <tr><td style="color:var(--text-secondary)">Store Value</td><td>${meta.value ? meta.value.toLocaleString() + ' gp' : '—'}</td></tr>
+                        <tr><td style="color:var(--text-secondary)">Examine</td><td>${meta.examine || '—'}</td></tr>
+                    </table>
+                `;
+                document.getElementById('alchCard').innerHTML = `
+                    <div class="card-header"><span class="card-title">Alchemy Values</span></div>
+                    <table>
+                        <tr><td style="color:var(--text-secondary)">High Alch</td><td>${meta.highalch ? meta.highalch.toLocaleString() + ' gp' : '—'}</td></tr>
+                        <tr><td style="color:var(--text-secondary)">Low Alch</td><td>${meta.lowalch ? meta.lowalch.toLocaleString() + ' gp' : '—'}</td></tr>
+                        ${buyPrice && meta.highalch ? `<tr><td style="color:var(--text-secondary)">Alch Profit</td><td class="${meta.highalch - buyPrice - 250 > 0 ? 'positive' : 'negative'}">${(meta.highalch - buyPrice - 250).toLocaleString()} gp</td></tr>` : ''}
+                        ${buyPrice ? `<tr><td style="color:var(--text-secondary)">Buy Price</td><td>${buyPrice.toLocaleString()} gp</td></tr>` : ''}
+                        ${sellPrice ? `<tr><td style="color:var(--text-secondary)">Sell Price</td><td>${sellPrice.toLocaleString()} gp</td></tr>` : ''}
+                    </table>
+                `;
+
+                await loadChart(defaultDays);
+                document.getElementById('chartCard').style.display = '';
+                document.getElementById('volChartCard').style.display = '';
+
+                document.querySelectorAll('#chartTabs .tf-tab').forEach(btn => {
+                    btn.addEventListener('click', async () => {
+                        document.querySelectorAll('#chartTabs .tf-tab').forEach(b => b.classList.remove('active'));
+                        btn.classList.add('active');
+                        await loadChart(parseInt(btn.dataset.days));
+                    });
+                });
+
+            } catch (err) {
+                console.error(err);
+                document.getElementById('heroSection').innerHTML = `<div class="error-msg">Failed to load: ${err.message}</div>`;
+            }
+        })();
+
+        async function loadChart(days) {
+            const timestep = GE.timestepForDays(days);
+            const cacheKey = `${itemId}_${timestep}`;
+
+            let series;
+            if (cachedSeries[cacheKey]) {
+                series = cachedSeries[cacheKey];
+            } else {
+                const ts = await GE.getTimeseries(itemId, timestep);
+                series = ts.data || [];
+                cachedSeries[cacheKey] = series;
+            }
+
+            const needed = GE.pointsForDays(days, timestep);
+            const window = series.slice(-needed);
+
+            const labels = window.map(p => new Date(p.timestamp * 1000));
+            const buyPrices = window.map(p => p.avgHighPrice || null);
+            const sellPrices = window.map(p => p.avgLowPrice || null);
+            const buyVols = window.map(p => p.highPriceVolume || 0);
+            const sellVols = window.map(p => p.lowPriceVolume || 0);
+
+            if (window.length >= 2) {
+                const first = buyPrices.find(p => p != null);
+                const last = buyPrices[buyPrices.length - 1];
+                if (first && last) {
+                    const changePct = ((last - first) / first) * 100;
+                    const statEl = document.getElementById('statChange');
+                    statEl.innerHTML = `
+                        <div class="stat-value ${GE.pctClass(changePct)}">${GE.fmtPct(changePct)}</div>
+                        <div class="stat-label">${days === 1 ? '24H' : days + 'D'} Change</div>
+                    `;
+                }
+            }
+
+            renderPriceChart(labels, buyPrices, sellPrices);
+            renderVolChart(labels, buyVols, sellVols);
+        }
+
+        // Neon glow plugin
+        const glowPlugin = {
+            id: 'neonGlow',
+            beforeDatasetsDraw(chart) {
+                const ctx = chart.ctx;
+                ctx.save();
+                chart.data.datasets.forEach((ds, i) => {
+                    const meta = chart.getDatasetMeta(i);
+                    if (meta.type !== 'line' || meta.hidden) return;
+                    ctx.shadowColor = ds.borderColor;
+                    ctx.shadowBlur = 12;
+                    ctx.shadowOffsetX = 0;
+                    ctx.shadowOffsetY = 0;
+                });
+            },
+            afterDatasetsDraw(chart) {
+                chart.ctx.restore();
+            }
+        };
+
+        // Crosshair plugin
+        const crosshairPlugin = {
+            id: 'crosshair',
+            afterDraw(chart) {
+                if (chart.tooltip && chart.tooltip._active && chart.tooltip._active.length) {
+                    const ctx = chart.ctx;
+                    const x = chart.tooltip._active[0].element.x;
+                    const topY = chart.scales.y.top;
+                    const bottomY = chart.scales.y.bottom;
+                    ctx.save();
+                    ctx.beginPath();
+                    ctx.setLineDash([4, 4]);
+                    ctx.strokeStyle = 'rgba(255,255,255,0.25)';
+                    ctx.lineWidth = 1;
+                    ctx.moveTo(x, topY);
+                    ctx.lineTo(x, bottomY);
+                    ctx.stroke();
+                    ctx.restore();
+                }
+            }
+        };
+
+        function renderPriceChart(labels, buy, sell) {
+            if (priceChart) priceChart.destroy();
+
+            const ctx = document.getElementById('priceChart').getContext('2d');
+
+            // Gradient fills
+            const buyGrad = ctx.createLinearGradient(0, 0, 0, 380);
+            buyGrad.addColorStop(0, 'rgba(34,197,94,0.25)');
+            buyGrad.addColorStop(0.5, 'rgba(34,197,94,0.06)');
+            buyGrad.addColorStop(1, 'rgba(34,197,94,0)');
+
+            const sellGrad = ctx.createLinearGradient(0, 0, 0, 380);
+            sellGrad.addColorStop(0, 'rgba(239,68,68,0.2)');
+            sellGrad.addColorStop(0.5, 'rgba(239,68,68,0.04)');
+            sellGrad.addColorStop(1, 'rgba(239,68,68,0)');
+
+            priceChart = new Chart(ctx, {
+                type: 'line',
+                plugins: [glowPlugin, crosshairPlugin],
+                data: {
+                    labels,
+                    datasets: [
+                        {
+                            label: 'Buy Price',
+                            data: buy,
+                            borderColor: '#22c55e',
+                            backgroundColor: buyGrad,
+                            fill: true,
+                            spanGaps: true,
+                            tension: 0.35,
+                            pointRadius: 0,
+                            pointHitRadius: 10,
+                            pointHoverRadius: 5,
+                            pointHoverBackgroundColor: '#22c55e',
+                            pointHoverBorderColor: '#fff',
+                            pointHoverBorderWidth: 2,
+                            borderWidth: 2.5
+                        },
+                        {
+                            label: 'Sell Price',
+                            data: sell,
+                            borderColor: '#ef4444',
+                            backgroundColor: sellGrad,
+                            fill: true,
+                            spanGaps: true,
+                            tension: 0.35,
+                            pointRadius: 0,
+                            pointHitRadius: 10,
+                            pointHoverRadius: 5,
+                            pointHoverBackgroundColor: '#ef4444',
+                            pointHoverBorderColor: '#fff',
+                            pointHoverBorderWidth: 2,
+                            borderWidth: 2.5
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    interaction: { mode: 'index', intersect: false },
+                    plugins: {
+                        legend: {
+                            labels: { color: '#737373', font: { family: 'Inter', size: 12 }, boxWidth: 12, padding: 16,
+                                usePointStyle: true, pointStyle: 'circle'
+                            }
+                        },
+                        tooltip: {
+                            backgroundColor: 'rgba(0,0,0,0.95)',
+                            titleColor: '#ffffff',
+                            bodyColor: '#a0a0a0',
+                            borderColor: 'rgba(255,255,255,0.1)',
+                            borderWidth: 1,
+                            padding: 14,
+                            cornerRadius: 4,
+                            titleFont: { family: 'Inter', weight: '600', size: 13 },
+                            bodyFont: { family: 'Inter', size: 12 },
+                            displayColors: true,
+                            boxWidth: 8,
+                            boxHeight: 8,
+                            boxPadding: 4,
+                            callbacks: {
+                                label: ctx => ctx.dataset.label + ': ' + (ctx.parsed.y != null ? ctx.parsed.y.toLocaleString() + ' gp' : '—'),
+                                afterBody: (items) => {
+                                    if (items.length >= 2 && items[0].parsed.y && items[1].parsed.y) {
+                                        const margin = items[0].parsed.y - items[1].parsed.y;
+                                        return 'Margin: ' + margin.toLocaleString() + ' gp';
+                                    }
+                                    return '';
+                                }
+                            }
+                        }
+                    },
+                    scales: {
+                        x: {
+                            type: 'time',
+                            grid: { color: 'rgba(255,255,255,0.04)', lineWidth: 0.5 },
+                            ticks: { color: '#404040', font: { family: 'Inter', size: 11 }, maxTicksLimit: 8 }
+                        },
+                        y: {
+                            grid: { color: 'rgba(255,255,255,0.04)', lineWidth: 0.5 },
+                            ticks: {
+                                color: '#4a5568',
+                                font: { family: 'Inter', size: 11 },
+                                callback: v => GE.fmtGp(v)
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
+        function renderVolChart(labels, buyVols, sellVols) {
+            if (volChart) volChart.destroy();
+
+            const ctx = document.getElementById('volChart').getContext('2d');
+            const totals = buyVols.map((b, i) => b + sellVols[i]);
+            const avg = totals.reduce((a, b) => a + b, 0) / totals.length;
+
+            volChart = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels,
+                    datasets: [
+                        {
+                            label: 'Buy Volume',
+                            data: buyVols,
+                            backgroundColor: 'rgba(34,197,94,0.45)',
+                            borderRadius: { topLeft: 2, topRight: 2 },
+                            stack: 'vol'
+                        },
+                        {
+                            label: 'Sell Volume',
+                            data: sellVols,
+                            backgroundColor: 'rgba(239,68,68,0.4)',
+                            borderRadius: 0,
+                            stack: 'vol'
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    interaction: { mode: 'index', intersect: false },
+                    plugins: {
+                        legend: {
+                            labels: { color: '#737373', font: { family: 'Inter', size: 12 }, boxWidth: 12, padding: 16 }
+                        },
+                        tooltip: {
+                            backgroundColor: 'rgba(0,0,0,0.95)',
+                            titleColor: '#ffffff',
+                            bodyColor: '#a0a0a0',
+                            borderColor: 'rgba(255,255,255,0.08)',
+                            borderWidth: 1,
+                            padding: 12,
+                            titleFont: { family: 'Inter' },
+                            bodyFont: { family: 'Inter' },
+                            callbacks: {
+                                label: ctx => ctx.dataset.label + ': ' + ctx.parsed.y.toLocaleString(),
+                                afterBody: (items) => {
+                                    const total = items.reduce((s, i) => s + i.parsed.y, 0);
+                                    const ratio = total / avg;
+                                    let extra = 'Total: ' + total.toLocaleString();
+                                    if (ratio > 1.5) extra += ` (${ratio.toFixed(1)}x avg)`;
+                                    return extra;
+                                }
+                            }
+                        }
+                    },
+                    scales: {
+                        x: {
+                            type: 'time',
+                            stacked: true,
+                            grid: { display: false },
+                            ticks: { color: '#404040', font: { family: 'Inter', size: 11 }, maxTicksLimit: 8 }
+                        },
+                        y: {
+                            stacked: true,
+                            grid: { color: 'rgba(255,255,255,0.03)' },
+                            ticks: {
+                                color: '#4a5568',
+                                font: { family: 'Inter', size: 11 },
+                                callback: v => GE.fmtGp(v)
+                            }
+                        }
+                    }
+                }
+            });
+        }
+    </script>
+</body>
+</html>

@@ -1,0 +1,527 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GE Scanner — Spike Scanner</title>
+    <link rel="preconnect" href="https://prices.runescape.wiki">
+    <link rel="preconnect" href="https://oldschool.runescape.wiki">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link rel="preload" href="js/api.js" as="script">
+    <link rel="preload" href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" as="style">
+    <link rel="stylesheet" href="css/style.css">
+    <script>
+        window.__gePreload = {
+            mapping: fetch('https://prices.runescape.wiki/api/v1/osrs/mapping').then(r => r.json()),
+            latest: fetch('https://prices.runescape.wiki/api/v1/osrs/latest').then(r => r.json())
+        };
+    </script>
+    <style>
+        .scan-panel {
+            position: relative;
+            background-color: rgba(14, 14, 14, 0.95);
+            background-image:
+                linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.2) 15%, rgba(255,255,255,0.5) 50%, rgba(255,255,255,0.2) 85%, transparent 100%),
+                linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.1) 20%, rgba(255,255,255,0.25) 50%, rgba(255,255,255,0.1) 80%, transparent 100%),
+                linear-gradient(180deg, transparent 0%, rgba(255,255,255,0.12) 20%, rgba(255,255,255,0.25) 50%, rgba(255,255,255,0.12) 80%, transparent 100%),
+                linear-gradient(180deg, transparent 0%, rgba(255,255,255,0.12) 20%, rgba(255,255,255,0.25) 50%, rgba(255,255,255,0.12) 80%, transparent 100%),
+                radial-gradient(ellipse at top, rgba(255,255,255,0.04) 0%, transparent 70%);
+            background-size: 100% 1px, 100% 1px, 1px 100%, 1px 100%, 70% 60px;
+            background-position: top center, bottom center, left center, right center, top center;
+            background-repeat: no-repeat;
+            border: 1px solid rgba(255,255,255,0.06);
+            border-radius: var(--radius-md);
+            padding: 28px;
+            margin-bottom: 24px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.8), 0 0 60px rgba(255,255,255,0.02);
+            overflow: hidden;
+        }
+
+        .scan-section-label {
+            font-size: 0.6rem;
+            text-transform: uppercase;
+            letter-spacing: 0.15em;
+            color: var(--text-secondary);
+            margin-bottom: 12px;
+            font-weight: 600;
+        }
+
+        .scan-row {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 20px;
+            align-items: flex-end;
+            margin-bottom: 20px;
+        }
+
+        .scan-field {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+        .scan-field label {
+            font-size: 0.7rem;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            color: var(--text-muted);
+            font-weight: 600;
+        }
+        .scan-field input[type="number"],
+        .scan-field input[type="text"] {
+            background: rgba(255,255,255,0.03);
+            border: 1px solid rgba(255,255,255,0.08);
+            border-radius: 4px;
+            padding: 8px 12px;
+            color: var(--text-primary);
+            font-size: 0.9rem;
+            font-family: 'Inter', monospace;
+            width: 110px;
+            outline: none;
+            transition: border-color 0.2s;
+        }
+        .scan-field input:focus {
+            border-color: rgba(255,255,255,0.25);
+        }
+
+        .scan-check {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            cursor: pointer;
+            font-size: 0.8rem;
+            color: var(--text-secondary);
+            padding-bottom: 8px;
+        }
+        .scan-check input[type="checkbox"] {
+            accent-color: #ffffff;
+            width: 16px; height: 16px;
+        }
+
+        .scan-actions {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding-top: 8px;
+            border-top: 1px solid rgba(255,255,255,0.04);
+        }
+
+        .btn-scan {
+            position: relative;
+            background: #ffffff;
+            color: #000000;
+            border: none;
+            border-radius: var(--radius-sm);
+            padding: 10px 28px;
+            font-size: 0.85rem;
+            font-weight: 700;
+            font-family: inherit;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            cursor: pointer;
+            transition: all 0.2s;
+            box-shadow: 0 2px 20px rgba(255,255,255,0.1);
+        }
+        .btn-scan:hover { box-shadow: 0 4px 30px rgba(255,255,255,0.15); transform: translateY(-1px); }
+        .btn-scan:disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
+
+        .btn-export {
+            background: transparent;
+            border: 1px solid rgba(255,255,255,0.1);
+            border-radius: 4px;
+            padding: 9px 20px;
+            color: var(--text-secondary);
+            font-size: 0.8rem;
+            font-family: inherit;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .btn-export:hover { border-color: rgba(255,255,255,0.3); color: #ffffff; }
+
+        .scan-status {
+            font-size: 0.8rem;
+            color: var(--text-secondary);
+            font-family: 'Inter', monospace;
+        }
+
+        /* Progress */
+        .scan-progress {
+            display: none;
+            margin-bottom: 24px;
+        }
+        .scan-progress .card {
+            position: relative;
+            overflow: hidden;
+        }
+        .progress-inner {
+            text-align: center;
+            padding: 32px 20px;
+        }
+        .progress-label {
+            font-size: 0.85rem;
+            color: var(--text-secondary);
+            margin-bottom: 4px;
+            font-family: 'Inter', monospace;
+        }
+        .progress-pct {
+            font-size: 2.2rem;
+            font-weight: 700;
+            color: #ffffff;
+            text-shadow: 0 0 24px rgba(255,255,255,0.2);
+            margin-bottom: 16px;
+        }
+        .progress-track {
+            background: rgba(255,255,255,0.04);
+            border-radius: 4px;
+            height: 3px;
+            overflow: hidden;
+            position: relative;
+        }
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, rgba(255,255,255,0.4), #ffffff);
+            border-radius: 4px;
+            width: 0;
+            transition: width 0.3s;
+            box-shadow: 0 0 12px rgba(255,255,255,0.3);
+        }
+        .progress-detail {
+            font-size: 0.75rem;
+            color: var(--text-muted);
+            margin-top: 10px;
+        }
+
+        /* Results */
+        .results-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 16px;
+        }
+        .results-title {
+            font-size: 1rem;
+            font-weight: 600;
+            color: var(--text-primary);
+        }
+        .results-count {
+            font-size: 0.75rem;
+            background: rgba(255,255,255,0.06);
+            color: var(--text-primary);
+            padding: 4px 10px;
+            border-radius: 4px;
+            font-weight: 600;
+        }
+
+        #resultsTable th {
+            cursor: pointer;
+            user-select: none;
+            white-space: nowrap;
+            transition: color 0.15s;
+        }
+        #resultsTable th:hover {
+            color: var(--text-primary);
+        }
+        #resultsTable th.sorted {
+            color: #ffffff;
+        }
+        #resultsTable th.sorted::after {
+            content: ' ▾';
+            font-size: 0.7em;
+        }
+        #resultsTable th.sorted.asc::after {
+            content: ' ▴';
+        }
+    </style>
+</head>
+<body>
+    <div id="nav"></div>
+    <div class="page">
+        <div class="page-header">
+            <h1 class="page-title">Spike Scanner</h1>
+            <p class="page-subtitle">Detect unusual price and volume activity across all tradeable items</p>
+        </div>
+
+        <div class="scan-panel">
+            <div class="scan-section-label">Timeframe</div>
+            <div class="scan-row">
+                <div class="tf-tabs" id="tfTabs">
+                    <button class="tf-tab" data-days="7">7D</button>
+                    <button class="tf-tab active" data-days="30">30D</button>
+                    <button class="tf-tab" data-days="60">60D</button>
+                    <button class="tf-tab" data-days="90">90D</button>
+                    <button class="tf-tab" data-days="365">1Y</button>
+                </div>
+            </div>
+
+            <div class="scan-section-label">Thresholds</div>
+            <div class="scan-row">
+                <div class="scan-field">
+                    <label>Price Spike %</label>
+                    <input type="number" id="priceThresh" value="15" min="0">
+                </div>
+                <div class="scan-field">
+                    <label>Volume Spike %</label>
+                    <input type="number" id="volThresh" value="80" min="0">
+                </div>
+                <div class="scan-field">
+                    <label>Min Volume</label>
+                    <input type="text" id="minVol" value="500" placeholder="e.g. 1k">
+                </div>
+                <div class="scan-field">
+                    <label>Min Price</label>
+                    <input type="text" id="minPrice" value="5k" placeholder="e.g. 100k">
+                </div>
+                <label class="scan-check">
+                    <input type="checkbox" id="membersOnly"> Members Only
+                </label>
+            </div>
+
+            <div class="scan-actions">
+                <button class="btn-scan" id="scanBtn" onclick="runScan()">Scan for Spikes</button>
+                <button class="btn-export" onclick="exportCSV()">Export CSV</button>
+                <span id="statusText" class="scan-status"></span>
+            </div>
+        </div>
+
+        <div class="scan-progress" id="progressCard">
+            <div class="card">
+                <div class="progress-inner">
+                    <div class="progress-label">Scanning items...</div>
+                    <div class="progress-pct" id="progressPct">0%</div>
+                    <div class="progress-track">
+                        <div class="progress-fill" id="progressBar"></div>
+                    </div>
+                    <div class="progress-detail" id="progressText">Fetching item data...</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="card" id="resultsCard" style="display:none">
+            <div class="results-header">
+                <span class="results-title" id="resultTitle">Results</span>
+                <span class="results-count" id="resultCount"></span>
+            </div>
+            <div class="table-wrap">
+                <table id="resultsTable">
+                    <thead>
+                        <tr>
+                            <th data-sort="name" onclick="sortResults('name')">Item</th>
+                            <th data-sort="pricePct" onclick="sortResults('pricePct')">Price Change</th>
+                            <th data-sort="volPct" onclick="sortResults('volPct')">Vol Change</th>
+                            <th data-sort="curPrice" onclick="sortResults('curPrice')">Current Price</th>
+                            <th data-sort="curVol" onclick="sortResults('curVol')">Recent Vol</th>
+                            <th data-sort="avgPrevPrice" onclick="sortResults('avgPrevPrice')">Avg Prev Price</th>
+                            <th data-sort="avgPrevVol" onclick="sortResults('avgPrevVol')">Avg Prev Vol</th>
+                            <th data-sort="limit" onclick="sortResults('limit')">Buy Limit</th>
+                        </tr>
+                    </thead>
+                    <tbody id="resultsBody"></tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <script src="js/api.js"></script>
+    <script>
+        document.getElementById('nav').innerHTML = GE.navHTML('Scanner');
+        GE.initAutocomplete();
+
+        let results = [];
+        let currentSort = { key: 'pricePct', asc: false };
+        let scanning = false;
+
+        document.querySelectorAll('.tf-tab').forEach(btn => {
+            btn.addEventListener('click', () => {
+                document.querySelectorAll('.tf-tab').forEach(b => b.classList.remove('active'));
+                btn.classList.add('active');
+            });
+        });
+
+        function getSelectedDays() {
+            return parseInt(document.querySelector('.tf-tab.active').dataset.days);
+        }
+
+        async function runScan() {
+            if (scanning) return;
+            scanning = true;
+            const btn = document.getElementById('scanBtn');
+            btn.disabled = true;
+            btn.textContent = 'Scanning...';
+
+            const days = getSelectedDays();
+            const priceThresh = parseFloat(document.getElementById('priceThresh').value) || 0;
+            const volThresh = parseFloat(document.getElementById('volThresh').value) || 0;
+            const minVol = GE.parseGp(document.getElementById('minVol').value);
+            const minPrice = GE.parseGp(document.getElementById('minPrice').value);
+            const membersOnly = document.getElementById('membersOnly').checked;
+
+            const timestep = GE.timestepForDays(days);
+            const progress = document.getElementById('progressCard');
+            const progressText = document.getElementById('progressText');
+            const progressBar = document.getElementById('progressBar');
+            const progressPct = document.getElementById('progressPct');
+            progress.style.display = 'block';
+            document.getElementById('resultsCard').style.display = 'none';
+            results = [];
+
+            try {
+                progressText.textContent = 'Fetching item data...';
+                progressPct.textContent = '0%';
+                const [mapping, hourData] = await Promise.all([
+                    GE.getMapping(),
+                    GE.get1h()
+                ]);
+                const hour = hourData.data || hourData;
+
+                const candidates = [];
+                Object.keys(hour).forEach(idStr => {
+                    const id = parseInt(idStr);
+                    const d = hour[idStr];
+                    const meta = mapping[id];
+                    if (!meta) return;
+                    if (membersOnly && !meta.members) return;
+
+                    const vol = (d.highPriceVolume || 0) + (d.lowPriceVolume || 0);
+                    const price = d.avgHighPrice || d.avgLowPrice || 0;
+                    if (vol < minVol || price < minPrice) return;
+                    candidates.push(id);
+                });
+
+                progressText.textContent = `${candidates.length} candidates · ${days}d lookback · ${timestep} step`;
+
+                const BATCH = 12;
+                for (let i = 0; i < candidates.length; i += BATCH) {
+                    const batch = candidates.slice(i, i + BATCH);
+                    const batchResults = await Promise.all(
+                        batch.map(async id => {
+                            try {
+                                const ts = await GE.getTimeseries(id, timestep);
+                                return { id, data: ts.data || [] };
+                            } catch { return { id, data: [] }; }
+                        })
+                    );
+
+                    batchResults.forEach(({ id, data }) => {
+                        const neededPoints = GE.pointsForDays(days, timestep);
+                        if (data.length < Math.min(neededPoints, 5)) return;
+
+                        const window = data.slice(-neededPoints);
+                        if (window.length < 3) return;
+
+                        const curr = window[window.length - 1];
+                        const prev = window.slice(0, -1);
+
+                        const prevPrices = prev.map(p => p.avgHighPrice).filter(Boolean);
+                        if (!prevPrices.length) return;
+                        const avgPrevPrice = prevPrices.reduce((a, b) => a + b, 0) / prevPrices.length;
+
+                        const curPrice = curr.avgHighPrice;
+                        if (!curPrice) return;
+                        const pricePct = ((curPrice - avgPrevPrice) / avgPrevPrice) * 100;
+
+                        const prevVols = prev.map(p => (p.highPriceVolume || 0) + (p.lowPriceVolume || 0));
+                        const avgPrevVol = prevVols.reduce((a, b) => a + b, 0) / prevVols.length || 1;
+                        const curVol = (curr.highPriceVolume || 0) + (curr.lowPriceVolume || 0);
+                        const volPct = ((curVol / avgPrevVol) - 1) * 100;
+
+                        if (Math.abs(pricePct) >= priceThresh || volPct >= volThresh) {
+                            const meta = mapping[id];
+                            results.push({
+                                id, name: meta.name, meta,
+                                pricePct: Math.round(pricePct * 10) / 10,
+                                volPct: Math.round(volPct * 10) / 10,
+                                curPrice, curVol,
+                                avgPrevPrice: Math.round(avgPrevPrice),
+                                avgPrevVol: Math.round(avgPrevVol),
+                                limit: meta.limit || 0
+                            });
+                        }
+                    });
+
+                    const pct = Math.min(100, Math.round(((i + batch.length) / candidates.length) * 100));
+                    progressBar.style.width = pct + '%';
+                    progressPct.textContent = pct + '%';
+                    progressText.textContent = `Scanned ${Math.min(i + batch.length, candidates.length)} / ${candidates.length} · ${results.length} spikes found`;
+                    await new Promise(r => setTimeout(r, 200));
+                }
+
+                currentSort = { key: 'pricePct', asc: false };
+                results.sort((a, b) => b.pricePct - a.pricePct);
+                renderResults(days);
+            } catch (err) {
+                console.error(err);
+                document.getElementById('statusText').textContent = 'Error: ' + err.message;
+            } finally {
+                progress.style.display = 'none';
+                btn.disabled = false;
+                btn.textContent = 'Scan for Spikes';
+                scanning = false;
+            }
+        }
+
+        function renderResults(days) {
+            const card = document.getElementById('resultsCard');
+            card.style.display = 'block';
+            document.getElementById('resultTitle').textContent = `Spikes Found · ${days}d lookback`;
+            document.getElementById('resultCount').textContent = results.length + ' items';
+
+            updateSortHeaders();
+
+            const body = document.getElementById('resultsBody');
+            if (!results.length) {
+                body.innerHTML = '<tr><td colspan="8" class="status-msg">No spikes matching your filters.</td></tr>';
+                return;
+            }
+
+            const scanDays = getSelectedDays();
+            body.innerHTML = results.map(r => `<tr>
+                <td><div class="item-cell">${GE.imgTag(r.meta)}<span class="item-name"><a href="item.html?id=${r.id}&days=${scanDays}">${r.name}</a></span></div></td>
+                <td class="${GE.pctClass(r.pricePct)}">${GE.fmtPct(r.pricePct)}</td>
+                <td class="${GE.pctClass(r.volPct)}">${GE.fmtPct(r.volPct)}</td>
+                <td>${GE.fmtGp(r.curPrice)} gp</td>
+                <td>${GE.fmtGp(r.curVol)}</td>
+                <td>${GE.fmtGp(r.avgPrevPrice)} gp</td>
+                <td>${GE.fmtGp(r.avgPrevVol)}</td>
+                <td>${r.limit ? r.limit.toLocaleString() : '—'}</td>
+            </tr>`).join('');
+        }
+
+        function updateSortHeaders() {
+            document.querySelectorAll('#resultsTable th').forEach(th => {
+                th.classList.remove('sorted', 'asc');
+                if (th.dataset.sort === currentSort.key) {
+                    th.classList.add('sorted');
+                    if (currentSort.asc) th.classList.add('asc');
+                }
+            });
+        }
+
+        function sortResults(key) {
+            if (currentSort.key === key) {
+                currentSort.asc = !currentSort.asc;
+            } else {
+                currentSort = { key, asc: key === 'name' };
+            }
+            results.sort((a, b) => {
+                let va = a[key], vb = b[key];
+                if (typeof va === 'string') return currentSort.asc ? va.localeCompare(vb) : vb.localeCompare(va);
+                return currentSort.asc ? va - vb : vb - va;
+            });
+            renderResults(getSelectedDays());
+        }
+
+        function exportCSV() {
+            if (!results.length) { alert('Run a scan first!'); return; }
+            let csv = 'Item,Price Change %,Vol Change %,Current Price,Current Vol,Avg Prev Price,Avg Prev Vol,Buy Limit\n';
+            results.forEach(r => {
+                csv += `"${r.name.replace(/"/g, '""')}",${r.pricePct},${r.volPct},${r.curPrice},${r.curVol},${r.avgPrevPrice},${r.avgPrevVol},${r.limit}\n`;
+            });
+            const blob = new Blob([csv], { type: 'text/csv' });
+            const a = document.createElement('a');
+            a.href = URL.createObjectURL(blob);
+            a.download = `ge_spikes_${getSelectedDays()}d_${new Date().toISOString().slice(0, 10)}.csv`;
+            a.click();
+        }
+    </script>
+</body>
+</html>
