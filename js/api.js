@@ -165,7 +165,8 @@ const GE = {
         const links = [
             ['index.html', 'Dashboard'],
             ['browse.html', 'Browse'],
-            ['scanner.html', 'Scanner']
+            ['scanner.html', 'Scanner'],
+            ['tools.html', 'Tools']
         ];
         return `<nav class="nav"><div class="nav-inner">
             <a href="index.html" class="nav-logo"><span class="logo-icon">⚔️</span><span>GE Scanner</span></a>

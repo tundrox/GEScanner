@@ -1,0 +1,513 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GE Scanner — Tools</title>
+    <link rel="preconnect" href="https://prices.runescape.wiki">
+    <link rel="preconnect" href="https://oldschool.runescape.wiki">
+    <link rel="preconnect" href="https://cdn.jsdelivr.net">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link rel="preload" href="js/api.js" as="script">
+    <link rel="preload" href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" as="style">
+    <link rel="stylesheet" href="css/style.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns"></script>
+    <script>
+        window.__gePreload = {
+            mapping: fetch('https://prices.runescape.wiki/api/v1/osrs/mapping').then(r => r.json()),
+            latest: fetch('https://prices.runescape.wiki/api/v1/osrs/latest').then(r => r.json())
+        };
+    </script>
+    <style>
+        .tool-panel { display: none; }
+        .tool-panel.active { display: block; }
+        .tool-table-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+        .tool-table th.sorted-asc::after { content: ' \25B2'; font-size: 0.6rem; }
+        .tool-table th.sorted-desc::after { content: ' \25BC'; font-size: 0.6rem; }
+        .tool-filters {
+            display: flex; flex-wrap: wrap; gap: 12px;
+            align-items: center; margin-bottom: 16px;
+        }
+        .tool-filters label {
+            font-size: 0.75rem; color: var(--text-secondary);
+            display: flex; align-items: center; gap: 6px;
+        }
+        .tool-filters input[type="number"] { width: 100px; }
+        .recent-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 12px; }
+        .recent-empty { text-align: center; padding: 40px 20px; color: var(--text-muted); font-size: 0.9rem; }
+        .compare-items { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 16px; }
+        .compare-chip {
+            display: inline-flex; align-items: center; gap: 6px;
+            padding: 6px 12px; border-radius: 20px; font-size: 0.8rem; font-weight: 500;
+            border: 1px solid rgba(255,255,255,0.1); background: rgba(255,255,255,0.04);
+        }
+        .compare-chip .remove { cursor: pointer; opacity: 0.5; font-size: 1rem; line-height: 1; }
+        .compare-chip .remove:hover { opacity: 1; }
+        .compare-search { position: relative; max-width: 320px; margin-bottom: 16px; }
+        .compare-search input {
+            width: 100%; padding: 10px 14px; font-size: 0.85rem;
+            background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.08);
+            border-radius: var(--radius-sm); color: var(--text-primary); font-family: inherit; outline: none;
+        }
+        .compare-search input:focus { border-color: rgba(255,255,255,0.2); }
+        .compare-dropdown {
+            display: none; position: absolute; top: 100%; left: 0; right: 0;
+            max-height: 300px; overflow-y: auto; background: rgba(8,8,8,0.98);
+            backdrop-filter: blur(20px); border: 1px solid rgba(255,255,255,0.08);
+            border-radius: 0 0 var(--radius-sm) var(--radius-sm); margin-top: 2px; z-index: 50;
+        }
+        .compare-dropdown .cmp-item {
+            display: flex; align-items: center; gap: 10px; padding: 8px 12px;
+            cursor: pointer; font-size: 0.82rem; color: var(--text-primary);
+            border-bottom: 1px solid rgba(255,255,255,0.03);
+        }
+        .compare-dropdown .cmp-item:hover { background: rgba(255,255,255,0.06); }
+        .compare-chart-wrap { position: relative; height: 400px; }
+        .compare-chart-wrap canvas { width: 100% !important; height: 100% !important; }
+        .tool-status { text-align: center; padding: 40px 20px; color: var(--text-secondary); }
+        @media (max-width: 600px) {
+            .tool-filters { flex-direction: column; align-items: stretch; }
+            .tool-filters label { justify-content: space-between; }
+            .tool-filters input[type="number"] { flex: 1; }
+            .compare-search { max-width: none; }
+            .compare-chart-wrap { height: 260px; }
+            .recent-grid { grid-template-columns: 1fr; }
+        }
+    </style>
+</head>
+<body>
+    <div id="nav"></div>
+    <div class="page">
+        <div class="page-header">
+            <h1 class="page-title">Tools</h1>
+            <p class="page-subtitle">Flip finder, alch profits, price comparison & more</p>
+        </div>
+
+        <div class="tf-tabs" id="toolTabs" style="margin-bottom: 24px">
+            <button class="tf-tab active" data-tool="flip">Flip Finder</button>
+            <button class="tf-tab" data-tool="alch">Alch Profit</button>
+            <button class="tf-tab" data-tool="recent">Recently Viewed</button>
+            <button class="tf-tab" data-tool="compare">Price Compare</button>
+        </div>
+
+        <!-- Flip Finder -->
+        <div id="tool-flip" class="tool-panel active">
+            <div class="card">
+                <div class="card-header">
+                    <span class="card-title">Flip Finder</span>
+                    <span class="card-badge badge-green">1% GE Tax</span>
+                </div>
+                <div class="tool-filters">
+                    <label>Min Margin <input type="number" id="flipMinMargin" value="100" min="0"></label>
+                    <label>Min Buy Limit <input type="number" id="flipMinLimit" value="1" min="0"></label>
+                    <label><select id="flipMembers">
+                        <option value="all">All Items</option>
+                        <option value="members">Members</option>
+                        <option value="f2p">F2P Only</option>
+                    </select></label>
+                    <button class="btn btn-secondary" id="flipScan">Scan</button>
+                </div>
+                <div id="flipResults"><div class="tool-status"><div class="spinner"></div>Scanning prices...</div></div>
+            </div>
+        </div>
+
+        <!-- Alch Profit -->
+        <div id="tool-alch" class="tool-panel">
+            <div class="card">
+                <div class="card-header">
+                    <span class="card-title">Alch Profit Scanner</span>
+                    <span class="card-badge badge-gold">High Alch</span>
+                </div>
+                <div class="tool-filters">
+                    <label>Min Profit <input type="number" id="alchMinProfit" value="1" min="0"></label>
+                    <label><select id="alchMembers">
+                        <option value="all">All Items</option>
+                        <option value="members">Members</option>
+                        <option value="f2p">F2P Only</option>
+                    </select></label>
+                    <button class="btn btn-secondary" id="alchScan">Scan</button>
+                </div>
+                <div id="alchResults"><div class="tool-status"><div class="spinner"></div>Scanning alch values...</div></div>
+            </div>
+        </div>
+
+        <!-- Recently Viewed -->
+        <div id="tool-recent" class="tool-panel">
+            <div class="card">
+                <div class="card-header">
+                    <span class="card-title">Recently Viewed</span>
+                    <span class="card-badge badge-blue">History</span>
+                </div>
+                <div id="recentResults"><div class="recent-empty">Visit item pages to build your history</div></div>
+            </div>
+        </div>
+
+        <!-- Price Compare -->
+        <div id="tool-compare" class="tool-panel">
+            <div class="card">
+                <div class="card-header">
+                    <span class="card-title">Price Comparison</span>
+                    <span class="card-badge badge-blue">Chart</span>
+                </div>
+                <div class="compare-search" id="compareSearchWrap">
+                    <input type="text" id="compareSearch" placeholder="Search items to compare (max 3)..." autocomplete="off">
+                    <div class="compare-dropdown" id="compareDropdown"></div>
+                </div>
+                <div class="compare-items" id="compareChips"></div>
+                <div class="tf-tabs" id="compareTf" style="margin-bottom: 16px">
+                    <button class="tf-tab" data-days="7">7D</button>
+                    <button class="tf-tab active" data-days="30">30D</button>
+                    <button class="tf-tab" data-days="90">90D</button>
+                    <button class="tf-tab" data-days="180">180D</button>
+                    <button class="tf-tab" data-days="365">1Y</button>
+                </div>
+                <label class="checkbox-label" style="margin-bottom: 16px">
+                    <input type="checkbox" id="compareNormalize"> Normalize (% change from start)
+                </label>
+                <div class="chart-glow">
+                    <div class="compare-chart-wrap">
+                        <canvas id="compareChart"></canvas>
+                    </div>
+                </div>
+                <div id="compareStatus" class="tool-status">Add items above to compare prices</div>
+            </div>
+        </div>
+    </div>
+
+    <script src="js/api.js"></script>
+    <script>
+    (async () => {
+        document.getElementById('nav').innerHTML = GE.navHTML('Tools');
+        GE.initAutocomplete();
+
+        // Tab switching
+        document.querySelectorAll('#toolTabs .tf-tab').forEach(btn => {
+            btn.onclick = () => {
+                document.querySelectorAll('#toolTabs .tf-tab').forEach(b => b.classList.remove('active'));
+                document.querySelectorAll('.tool-panel').forEach(p => p.classList.remove('active'));
+                btn.classList.add('active');
+                document.getElementById('tool-' + btn.dataset.tool).classList.add('active');
+            };
+        });
+
+        const [mapping, latestData] = await GE.preload();
+        const latest = latestData.data;
+        const NATURE_ID = 561;
+
+        function geTax(sell) { return Math.min(Math.floor(sell * 0.01), 5000000); }
+
+        // ===================== Flip Finder =====================
+        let flipData = [], flipSort = { col: 'margin', dir: 'desc' };
+
+        function buildFlips() {
+            const minMargin = parseInt(document.getElementById('flipMinMargin').value) || 0;
+            const minLimit  = parseInt(document.getElementById('flipMinLimit').value) || 0;
+            const mf = document.getElementById('flipMembers').value;
+            const out = [];
+            for (const [id, p] of Object.entries(latest)) {
+                if (!p.high || !p.low || p.high <= p.low) continue;
+                const m = mapping[id];
+                if (!m || !m.name) continue;
+                if (m.limit && m.limit < minLimit) continue;
+                if (mf === 'members' && !m.members) continue;
+                if (mf === 'f2p' && m.members) continue;
+                const tax = geTax(p.high);
+                const margin = p.high - p.low - tax;
+                if (margin < minMargin) continue;
+                out.push({
+                    id, name: m.name, buy: p.low, sell: p.high, tax, margin,
+                    roi: (margin / p.low) * 100,
+                    limit: m.limit || 0,
+                    ppl: m.limit ? margin * m.limit : 0,
+                    meta: m
+                });
+            }
+            return out;
+        }
+
+        function renderFlips() {
+            const sorted = [...flipData].sort((a, b) => {
+                const d = flipSort.dir === 'desc' ? -1 : 1;
+                return flipSort.col === 'name' ? a.name.localeCompare(b.name) * d : (a[flipSort.col] - b[flipSort.col]) * d;
+            });
+            const top = sorted.slice(0, 200);
+            if (!top.length) { document.getElementById('flipResults').innerHTML = '<div class="tool-status">No items match your filters</div>'; return; }
+
+            const cols = [
+                ['name','Item','left'],['buy','Buy','right'],['sell','Sell','right'],
+                ['tax','Tax','right'],['margin','Margin','right'],['roi','ROI %','right'],
+                ['limit','Limit','right'],['ppl','Profit/Limit','right']
+            ];
+            let h = '<div class="tool-table-wrap"><table class="tool-table"><thead><tr>';
+            for (const [k,l,a] of cols) {
+                const cls = flipSort.col === k ? 'sorted-' + flipSort.dir : '';
+                h += `<th data-col="${k}" class="${cls}" style="text-align:${a}">${l}</th>`;
+            }
+            h += '</tr></thead><tbody>';
+            for (const r of top) {
+                const c = r.margin > 0 ? 'positive' : r.margin < 0 ? 'negative' : 'neutral';
+                h += `<tr>
+                    <td><a href="item.html?id=${r.id}" class="item-cell">${GE.imgTag(r.meta,24)}<span class="item-name">${r.name}</span></a></td>
+                    <td style="text-align:right">${GE.fmtGp(r.buy)}</td>
+                    <td style="text-align:right">${GE.fmtGp(r.sell)}</td>
+                    <td style="text-align:right;color:var(--red)">${GE.fmtGp(r.tax)}</td>
+                    <td style="text-align:right" class="${c}">${GE.fmtGp(r.margin)}</td>
+                    <td style="text-align:right" class="${c}">${r.roi.toFixed(1)}%</td>
+                    <td style="text-align:right">${r.limit ? r.limit.toLocaleString() : '—'}</td>
+                    <td style="text-align:right" class="${c}">${GE.fmtGp(r.ppl)}</td>
+                </tr>`;
+            }
+            h += '</tbody></table></div>';
+            h += `<div style="margin-top:12px;font-size:0.75rem;color:var(--text-muted)">Showing top ${top.length} of ${flipData.length} items</div>`;
+            document.getElementById('flipResults').innerHTML = h;
+
+            document.querySelectorAll('#flipResults th[data-col]').forEach(th => {
+                th.onclick = () => {
+                    const col = th.dataset.col;
+                    if (flipSort.col === col) flipSort.dir = flipSort.dir === 'desc' ? 'asc' : 'desc';
+                    else { flipSort.col = col; flipSort.dir = col === 'name' ? 'asc' : 'desc'; }
+                    renderFlips();
+                };
+            });
+        }
+
+        function runFlips() { flipData = buildFlips(); flipSort = { col: 'margin', dir: 'desc' }; renderFlips(); }
+        document.getElementById('flipScan').onclick = runFlips;
+        runFlips();
+
+        // ===================== Alch Profit =====================
+        let alchData = [], alchSort = { col: 'profit', dir: 'desc' };
+
+        function buildAlchs() {
+            const natPrice = latest[NATURE_ID] ? latest[NATURE_ID].high : 250;
+            const minProfit = parseInt(document.getElementById('alchMinProfit').value) || 0;
+            const mf = document.getElementById('alchMembers').value;
+            const out = [];
+            for (const [id, m] of Object.entries(mapping)) {
+                if (!m.highalch || m.highalch <= 0) continue;
+                const p = latest[id];
+                if (!p || !p.high) continue;
+                if (mf === 'members' && !m.members) continue;
+                if (mf === 'f2p' && m.members) continue;
+                const profit = m.highalch - p.high - natPrice;
+                if (profit < minProfit) continue;
+                out.push({
+                    id, name: m.name, buy: p.high, alch: m.highalch, nature: natPrice,
+                    profit, roi: (profit / (p.high + natPrice)) * 100,
+                    limit: m.limit || 0, meta: m
+                });
+            }
+            return out;
+        }
+
+        function renderAlchs() {
+            const sorted = [...alchData].sort((a, b) => {
+                const d = alchSort.dir === 'desc' ? -1 : 1;
+                return alchSort.col === 'name' ? a.name.localeCompare(b.name) * d : (a[alchSort.col] - b[alchSort.col]) * d;
+            });
+            const top = sorted.slice(0, 200);
+            if (!top.length) { document.getElementById('alchResults').innerHTML = '<div class="tool-status">No profitable alch items found</div>'; return; }
+
+            const cols = [
+                ['name','Item','left'],['buy','Buy Price','right'],['alch','Alch Value','right'],
+                ['nature','Nature Cost','right'],['profit','Profit','right'],['roi','ROI %','right'],
+                ['limit','Limit','right']
+            ];
+            let h = '<div class="tool-table-wrap"><table class="tool-table"><thead><tr>';
+            for (const [k,l,a] of cols) {
+                const cls = alchSort.col === k ? 'sorted-' + alchSort.dir : '';
+                h += `<th data-col="${k}" class="${cls}" style="text-align:${a}">${l}</th>`;
+            }
+            h += '</tr></thead><tbody>';
+            for (const r of top) {
+                const c = r.profit > 0 ? 'positive' : 'negative';
+                h += `<tr>
+                    <td><a href="item.html?id=${r.id}" class="item-cell">${GE.imgTag(r.meta,24)}<span class="item-name">${r.name}</span></a></td>
+                    <td style="text-align:right">${GE.fmtGp(r.buy)}</td>
+                    <td style="text-align:right;color:var(--green)">${GE.fmtGp(r.alch)}</td>
+                    <td style="text-align:right;color:var(--red)">${GE.fmtGp(r.nature)}</td>
+                    <td style="text-align:right" class="${c}">${GE.fmtGp(r.profit)}</td>
+                    <td style="text-align:right" class="${c}">${r.roi.toFixed(1)}%</td>
+                    <td style="text-align:right">${r.limit ? r.limit.toLocaleString() : '—'}</td>
+                </tr>`;
+            }
+            h += '</tbody></table></div>';
+            const natPrice = latest[NATURE_ID] ? latest[NATURE_ID].high : 250;
+            h += `<div style="margin-top:12px;font-size:0.75rem;color:var(--text-muted)">Nature rune: ${natPrice.toLocaleString()} gp · Showing top ${top.length} of ${alchData.length} items</div>`;
+            document.getElementById('alchResults').innerHTML = h;
+
+            document.querySelectorAll('#alchResults th[data-col]').forEach(th => {
+                th.onclick = () => {
+                    const col = th.dataset.col;
+                    if (alchSort.col === col) alchSort.dir = alchSort.dir === 'desc' ? 'asc' : 'desc';
+                    else { alchSort.col = col; alchSort.dir = col === 'name' ? 'asc' : 'desc'; }
+                    renderAlchs();
+                };
+            });
+        }
+
+        function runAlchs() { alchData = buildAlchs(); alchSort = { col: 'profit', dir: 'desc' }; renderAlchs(); }
+        document.getElementById('alchScan').onclick = runAlchs;
+        runAlchs();
+
+        // ===================== Recently Viewed =====================
+        function loadRecent() {
+            let recent = [];
+            try { recent = JSON.parse(localStorage.getItem('ge_recent')) || []; } catch(e) {}
+            if (!recent.length) {
+                document.getElementById('recentResults').innerHTML = '<div class="recent-empty">Visit item pages to build your history</div>';
+                return;
+            }
+            let h = '<div class="recent-grid">';
+            for (const id of recent) {
+                const m = mapping[id];
+                if (!m) continue;
+                const p = latest[id];
+                const price = p ? (p.high || p.low || 0) : 0;
+                h += `<a href="item.html?id=${id}" class="item-card">
+                    <div class="icon-wrap">${GE.imgTag(m, 32)}</div>
+                    <div class="info">
+                        <div class="name">${m.name}</div>
+                        <div class="meta">${m.members ? 'P2P' : 'F2P'}${m.limit ? ' · Lim: ' + GE.fmtGp(m.limit) : ''}</div>
+                    </div>
+                    <div class="price-col"><div class="price">${GE.fmtGp(price)}</div></div>
+                </a>`;
+            }
+            h += '</div>';
+            document.getElementById('recentResults').innerHTML = h;
+        }
+        loadRecent();
+
+        // ===================== Price Compare =====================
+        const CMP_COLORS = ['#22c55e', '#3b82f6', '#f59e0b'];
+        let cmpItems = [], cmpChart = null, cmpDays = 30;
+
+        const cInput = document.getElementById('compareSearch');
+        const cDrop = document.getElementById('compareDropdown');
+        let cDeb = null;
+
+        cInput.addEventListener('input', () => {
+            clearTimeout(cDeb);
+            cDeb = setTimeout(() => {
+                const q = cInput.value.trim().toLowerCase();
+                if (q.length < 2) { cDrop.style.display = 'none'; return; }
+                const existing = new Set(cmpItems.map(i => i.id));
+                const matches = Object.values(mapping)
+                    .filter(m => m.name.toLowerCase().includes(q) && !existing.has(String(m.id)))
+                    .sort((a, b) => {
+                        const as = a.name.toLowerCase().startsWith(q) ? 0 : 1;
+                        const bs = b.name.toLowerCase().startsWith(q) ? 0 : 1;
+                        return as !== bs ? as - bs : a.name.localeCompare(b.name);
+                    }).slice(0, 6);
+
+                if (!matches.length) {
+                    cDrop.innerHTML = '<div style="padding:12px;text-align:center;color:var(--text-muted);font-size:0.82rem">No items found</div>';
+                    cDrop.style.display = 'block'; return;
+                }
+                cDrop.innerHTML = matches.map(m =>
+                    `<div class="cmp-item" data-id="${m.id}">${GE.imgTag(m, 24)}<span>${m.name}</span></div>`
+                ).join('');
+                cDrop.style.display = 'block';
+                cDrop.querySelectorAll('.cmp-item').forEach(el => {
+                    el.onclick = () => { addCmp(el.dataset.id); cInput.value = ''; cDrop.style.display = 'none'; };
+                });
+            }, 120);
+        });
+
+        document.addEventListener('click', e => { if (!e.target.closest('#compareSearchWrap')) cDrop.style.display = 'none'; });
+
+        function addCmp(id) {
+            if (cmpItems.length >= 3 || cmpItems.find(i => i.id === String(id))) return;
+            const m = mapping[id];
+            if (!m) return;
+            cmpItems.push({ id: String(id), name: m.name, meta: m });
+            renderChips(); updateCmpChart();
+        }
+
+        function removeCmp(id) {
+            cmpItems = cmpItems.filter(i => i.id !== id);
+            renderChips(); updateCmpChart();
+        }
+
+        function renderChips() {
+            const wrap = document.getElementById('compareChips');
+            wrap.innerHTML = cmpItems.map((item, i) =>
+                `<span class="compare-chip" style="border-color:${CMP_COLORS[i]}40;background:${CMP_COLORS[i]}10">
+                    <span style="color:${CMP_COLORS[i]}">${item.name}</span>
+                    <span class="remove" data-id="${item.id}">&times;</span>
+                </span>`
+            ).join('');
+            wrap.querySelectorAll('.remove').forEach(el => { el.onclick = () => removeCmp(el.dataset.id); });
+            document.getElementById('compareSearchWrap').style.display = cmpItems.length >= 3 ? 'none' : '';
+            document.getElementById('compareStatus').style.display = cmpItems.length ? 'none' : '';
+        }
+
+        async function updateCmpChart() {
+            if (!cmpItems.length) {
+                if (cmpChart) { cmpChart.destroy(); cmpChart = null; }
+                document.getElementById('compareStatus').style.display = '';
+                return;
+            }
+            const norm = document.getElementById('compareNormalize').checked;
+            const ts = GE.timestepForDays(cmpDays);
+            const datasets = [];
+
+            for (let i = 0; i < cmpItems.length; i++) {
+                try {
+                    const res = await GE.fetch('/timeseries', { id: cmpItems[i].id, timestep: ts });
+                    const pts = (res.data || []).filter(p => p.timestamp >= Date.now() / 1000 - cmpDays * 86400);
+                    if (!pts.length) continue;
+                    const base = pts[0].avgHighPrice || pts[0].avgLowPrice || 1;
+                    datasets.push({
+                        label: cmpItems[i].name,
+                        data: pts.map(p => {
+                            const v = p.avgHighPrice || p.avgLowPrice;
+                            if (!v) return null;
+                            return { x: p.timestamp * 1000, y: norm ? ((v - base) / base * 100) : v };
+                        }).filter(Boolean),
+                        borderColor: CMP_COLORS[i],
+                        backgroundColor: CMP_COLORS[i] + '18',
+                        borderWidth: 2, pointRadius: 0, pointHitRadius: 8, tension: 0.3, fill: false
+                    });
+                } catch(e) {}
+            }
+
+            const ctx = document.getElementById('compareChart').getContext('2d');
+            if (cmpChart) cmpChart.destroy();
+            cmpChart = new Chart(ctx, {
+                type: 'line',
+                data: { datasets },
+                options: {
+                    responsive: true, maintainAspectRatio: false,
+                    interaction: { mode: 'index', intersect: false },
+                    plugins: {
+                        legend: { labels: { color: '#737373', font: { family: 'Inter', size: 12 }, boxWidth: 12, padding: 16 } },
+                        tooltip: {
+                            backgroundColor: 'rgba(0,0,0,0.9)', titleColor: '#f0f0f0', bodyColor: '#f0f0f0',
+                            borderColor: 'rgba(255,255,255,0.1)', borderWidth: 1,
+                            callbacks: { label: c => c.dataset.label + ': ' + (norm ? c.parsed.y.toFixed(1) + '%' : GE.fmtGp(Math.round(c.parsed.y))) }
+                        }
+                    },
+                    scales: {
+                        x: { type: 'time', grid: { color: 'rgba(255,255,255,0.03)' }, ticks: { color: '#404040', font: { family: 'Inter', size: 11 }, maxTicksLimit: 8 } },
+                        y: { grid: { color: 'rgba(255,255,255,0.03)' }, ticks: { color: '#404040', font: { family: 'Inter', size: 11 }, callback: v => norm ? v.toFixed(0) + '%' : GE.fmtGp(v) } }
+                    }
+                }
+            });
+        }
+
+        document.querySelectorAll('#compareTf .tf-tab').forEach(btn => {
+            btn.onclick = () => {
+                document.querySelectorAll('#compareTf .tf-tab').forEach(b => b.classList.remove('active'));
+                btn.classList.add('active');
+                cmpDays = parseInt(btn.dataset.days);
+                updateCmpChart();
+            };
+        });
+        document.getElementById('compareNormalize').onchange = () => updateCmpChart();
+    })();
+    </script>
+</body>
+</html>

@@ -110,6 +110,14 @@
                 const buyPrice = latest ? latest.high : null;
                 const sellPrice = latest ? latest.low : null;
 
+                // Track for Recently Viewed in Tools page
+                try {
+                    let recent = JSON.parse(localStorage.getItem('ge_recent')) || [];
+                    recent = recent.filter(r => r !== itemId);
+                    recent.unshift(itemId);
+                    localStorage.setItem('ge_recent', JSON.stringify(recent.slice(0, 20)));
+                } catch(e) {}
+
                 document.title = `${meta.name} — GE Scanner`;
 
                 document.getElementById('heroSection').innerHTML = `
