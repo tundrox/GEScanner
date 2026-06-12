@@ -97,7 +97,7 @@
             <div class="card">
                 <div class="card-header">
                     <span class="card-title">Flip Finder</span>
-                    <span class="card-badge badge-green">1% GE Tax</span>
+                    <span class="card-badge badge-green">2% GE Tax</span>
                 </div>
                 <div class="tool-filters">
                     <label>Min Margin <input type="number" id="flipMinMargin" value="100" min="0"></label>
@@ -196,7 +196,7 @@
         const latest = latestData.data;
         const NATURE_ID = 561;
 
-        function geTax(sell) { return Math.min(Math.floor(sell * 0.01), 5000000); }
+        function geTax(sell) { return Math.min(Math.floor(sell * 0.02), 5000000); }
 
         // ===================== Flip Finder =====================
         let flipData = [], flipSort = { col: 'margin', dir: 'desc' };
