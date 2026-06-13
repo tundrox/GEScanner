@@ -249,8 +249,13 @@
     <div id="nav"></div>
     <div class="page">
         <div class="page-header">
-            <h1 class="page-title">Spike Scanner</h1>
-            <p class="page-subtitle">Detect unusual price and volume activity across all tradeable items</p>
+            <h1 class="page-title" id="pageTitle">Spike Scanner</h1>
+            <p class="page-subtitle" id="pageSubtitle">Detect unusual price and volume activity across all tradeable items</p>
+        </div>
+
+        <div class="tf-tabs" id="modeTabs" style="margin-bottom: 24px">
+            <button class="tf-tab active" data-mode="spike">Spike Scanner</button>
+            <button class="tf-tab" data-mode="diamond">Diamond Hands</button>
         </div>
 
         <div class="scan-panel">
@@ -266,7 +271,7 @@
             </div>
 
             <div class="scan-section-label">Thresholds</div>
-            <div class="scan-row">
+            <div class="scan-row" id="spikeThresholds">
                 <div class="scan-field">
                     <label>Price Spike %</label>
                     <input type="number" id="priceThresh" value="15" min="0">
@@ -285,6 +290,23 @@
                 </div>
                 <label class="scan-check">
                     <input type="checkbox" id="membersOnly"> Members Only
+                </label>
+            </div>
+            <div class="scan-row" id="dhThresholds" style="display:none">
+                <div class="scan-field">
+                    <label>Min Price Rise %</label>
+                    <input type="number" id="dhPriceRise" value="20" min="0">
+                </div>
+                <div class="scan-field">
+                    <label>Min Vol Drop %</label>
+                    <input type="number" id="dhVolDrop" value="40" min="0">
+                </div>
+                <div class="scan-field">
+                    <label>Min Price</label>
+                    <input type="text" id="dhMinPrice" value="5k" placeholder="e.g. 100k">
+                </div>
+                <label class="scan-check">
+                    <input type="checkbox" id="dhMembersOnly"> Members Only
                 </label>
             </div>
 
@@ -341,17 +363,42 @@
         let results = [];
         let currentSort = { key: 'pricePct', asc: false };
         let scanning = false;
+        let scanMode = 'spike';
 
-        document.querySelectorAll('.tf-tab').forEach(btn => {
+        // Mode switching
+        document.querySelectorAll('#modeTabs .tf-tab').forEach(btn => {
+            btn.onclick = () => {
+                document.querySelectorAll('#modeTabs .tf-tab').forEach(b => b.classList.remove('active'));
+                btn.classList.add('active');
+                scanMode = btn.dataset.mode;
+                document.getElementById('spikeThresholds').style.display = scanMode === 'spike' ? '' : 'none';
+                document.getElementById('dhThresholds').style.display = scanMode === 'diamond' ? '' : 'none';
+                document.getElementById('resultsCard').style.display = 'none';
+                if (scanMode === 'spike') {
+                    document.getElementById('pageTitle').textContent = 'Spike Scanner';
+                    document.getElementById('pageSubtitle').textContent = 'Detect unusual price and volume activity across all tradeable items';
+                    document.getElementById('scanBtn').textContent = 'Scan for Spikes';
+                } else {
+                    document.getElementById('pageTitle').textContent = 'Diamond Hands';
+                    document.getElementById('pageSubtitle').textContent = 'Find items where someone loaded up and is holding — price pumped, volume dried up';
+                    document.getElementById('scanBtn').textContent = 'Scan for Holds';
+                }
+            };
+        });
+
+        // Timeframe tabs
+        document.querySelectorAll('#tfTabs .tf-tab').forEach(btn => {
             btn.addEventListener('click', () => {
-                document.querySelectorAll('.tf-tab').forEach(b => b.classList.remove('active'));
+                document.querySelectorAll('#tfTabs .tf-tab').forEach(b => b.classList.remove('active'));
                 btn.classList.add('active');
             });
         });
 
         function getSelectedDays() {
-            return parseInt(document.querySelector('.tf-tab.active').dataset.days);
+            return parseInt(document.querySelector('#tfTabs .tf-tab.active').dataset.days);
         }
+
+        function avg(arr) { return arr.length ? arr.reduce((a, b) => a + b, 0) / arr.length : 0; }
 
         async function runScan() {
             if (scanning) return;
@@ -361,13 +408,25 @@
             btn.textContent = 'Scanning...';
 
             const days = getSelectedDays();
-            const priceThresh = parseFloat(document.getElementById('priceThresh').value) || 0;
-            const volThresh = parseFloat(document.getElementById('volThresh').value) || 0;
-            const minVol = GE.parseGp(document.getElementById('minVol').value);
-            const minPrice = GE.parseGp(document.getElementById('minPrice').value);
-            const membersOnly = document.getElementById('membersOnly').checked;
-
             const timestep = GE.timestepForDays(days);
+            const isDH = scanMode === 'diamond';
+
+            // Read params based on mode
+            let minPrice, membersOnly, minVol, priceThresh, volThresh, dhMinRise, dhMinDrop;
+            if (isDH) {
+                dhMinRise = parseFloat(document.getElementById('dhPriceRise').value) || 0;
+                dhMinDrop = parseFloat(document.getElementById('dhVolDrop').value) || 0;
+                minPrice = GE.parseGp(document.getElementById('dhMinPrice').value);
+                membersOnly = document.getElementById('dhMembersOnly').checked;
+                minVol = 100;
+            } else {
+                priceThresh = parseFloat(document.getElementById('priceThresh').value) || 0;
+                volThresh = parseFloat(document.getElementById('volThresh').value) || 0;
+                minVol = GE.parseGp(document.getElementById('minVol').value);
+                minPrice = GE.parseGp(document.getElementById('minPrice').value);
+                membersOnly = document.getElementById('membersOnly').checked;
+            }
+
             const progress = document.getElementById('progressCard');
             const progressText = document.getElementById('progressText');
             const progressBar = document.getElementById('progressBar');
@@ -392,13 +451,13 @@
                     const meta = mapping[id];
                     if (!meta) return;
                     if (membersOnly && !meta.members) return;
-
                     const vol = (d.highPriceVolume || 0) + (d.lowPriceVolume || 0);
                     const price = d.avgHighPrice || d.avgLowPrice || 0;
                     if (vol < minVol || price < minPrice) return;
                     candidates.push(id);
                 });
 
+                const modeLabel = isDH ? 'holds' : 'spikes';
                 progressText.textContent = `${candidates.length} candidates · ${days}d lookback · ${timestep} step`;
 
                 const BATCH = 12;
@@ -416,49 +475,90 @@
                     batchResults.forEach(({ id, data }) => {
                         const neededPoints = GE.pointsForDays(days, timestep);
                         if (data.length < Math.min(neededPoints, 5)) return;
+                        const w = data.slice(-neededPoints);
+                        if (w.length < 6) return;
 
-                        const window = data.slice(-neededPoints);
-                        if (window.length < 3) return;
+                        const meta = mapping[id];
 
-                        const curr = window[window.length - 1];
-                        const prev = window.slice(0, -1);
+                        if (isDH) {
+                            // Diamond Hands: price up, volume dried up
+                            const third = Math.floor(w.length / 3);
+                            if (third < 2) return;
 
-                        const prevPrices = prev.map(p => p.avgHighPrice).filter(Boolean);
-                        if (!prevPrices.length) return;
-                        const avgPrevPrice = prevPrices.reduce((a, b) => a + b, 0) / prevPrices.length;
+                            const early = w.slice(0, third);
+                            const recent = w.slice(-third);
+                            const middle = w.slice(third, w.length - third);
 
-                        const curPrice = curr.avgHighPrice;
-                        if (!curPrice) return;
-                        const pricePct = ((curPrice - avgPrevPrice) / avgPrevPrice) * 100;
+                            const earlyPrices = early.map(p => p.avgHighPrice || p.avgLowPrice).filter(Boolean);
+                            const recentPrices = recent.map(p => p.avgHighPrice || p.avgLowPrice).filter(Boolean);
+                            if (!earlyPrices.length || !recentPrices.length) return;
 
-                        const prevVols = prev.map(p => (p.highPriceVolume || 0) + (p.lowPriceVolume || 0));
-                        const avgPrevVol = prevVols.reduce((a, b) => a + b, 0) / prevVols.length || 1;
-                        const curVol = (curr.highPriceVolume || 0) + (curr.lowPriceVolume || 0);
-                        const volPct = ((curVol / avgPrevVol) - 1) * 100;
+                            const earlyAvg = avg(earlyPrices);
+                            const recentAvg = avg(recentPrices);
+                            const priceRise = ((recentAvg - earlyAvg) / earlyAvg) * 100;
+                            if (priceRise < dhMinRise) return;
 
-                        if (Math.abs(pricePct) >= priceThresh || volPct >= volThresh) {
-                            const meta = mapping[id];
+                            // Volume: compare recent to accumulation period (early + middle)
+                            const accumVols = [...early, ...middle].map(p => (p.highPriceVolume || 0) + (p.lowPriceVolume || 0));
+                            const recentVols = recent.map(p => (p.highPriceVolume || 0) + (p.lowPriceVolume || 0));
+                            const accumAvg = avg(accumVols) || 1;
+                            const recentVolAvg = avg(recentVols);
+                            const volDrop = ((accumAvg - recentVolAvg) / accumAvg) * 100;
+                            if (volDrop < dhMinDrop) return;
+
                             results.push({
                                 id, name: meta.name, meta,
-                                pricePct: Math.round(pricePct * 10) / 10,
-                                volPct: Math.round(volPct * 10) / 10,
-                                curPrice, curVol,
-                                avgPrevPrice: Math.round(avgPrevPrice),
-                                avgPrevVol: Math.round(avgPrevVol),
+                                priceRise: Math.round(priceRise * 10) / 10,
+                                volDrop: Math.round(volDrop * 10) / 10,
+                                curPrice: Math.round(recentAvg),
+                                startPrice: Math.round(earlyAvg),
+                                accumVol: Math.round(accumAvg),
+                                recentVol: Math.round(recentVolAvg),
                                 limit: meta.limit || 0
                             });
+                        } else {
+                            // Spike Scanner: sudden price/volume change
+                            const curr = w[w.length - 1];
+                            const prev = w.slice(0, -1);
+                            const prevPrices = prev.map(p => p.avgHighPrice).filter(Boolean);
+                            if (!prevPrices.length) return;
+                            const avgPrevPrice = avg(prevPrices);
+                            const curPrice = curr.avgHighPrice;
+                            if (!curPrice) return;
+                            const pricePct = ((curPrice - avgPrevPrice) / avgPrevPrice) * 100;
+                            const prevVols = prev.map(p => (p.highPriceVolume || 0) + (p.lowPriceVolume || 0));
+                            const avgPrevVol = avg(prevVols) || 1;
+                            const curVol = (curr.highPriceVolume || 0) + (curr.lowPriceVolume || 0);
+                            const volPct = ((curVol / avgPrevVol) - 1) * 100;
+
+                            if (Math.abs(pricePct) >= priceThresh || volPct >= volThresh) {
+                                results.push({
+                                    id, name: meta.name, meta,
+                                    pricePct: Math.round(pricePct * 10) / 10,
+                                    volPct: Math.round(volPct * 10) / 10,
+                                    curPrice, curVol,
+                                    avgPrevPrice: Math.round(avgPrevPrice),
+                                    avgPrevVol: Math.round(avgPrevVol),
+                                    limit: meta.limit || 0
+                                });
+                            }
                         }
                     });
 
                     const pct = Math.min(100, Math.round(((i + batch.length) / candidates.length) * 100));
                     progressBar.style.width = pct + '%';
                     progressPct.textContent = pct + '%';
-                    progressText.textContent = `Scanned ${Math.min(i + batch.length, candidates.length)} / ${candidates.length} · ${results.length} spikes found`;
+                    progressText.textContent = `Scanned ${Math.min(i + batch.length, candidates.length)} / ${candidates.length} · ${results.length} ${modeLabel} found`;
                     await new Promise(r => setTimeout(r, 200));
                 }
 
-                currentSort = { key: 'pricePct', asc: false };
-                results.sort((a, b) => b.pricePct - a.pricePct);
+                if (isDH) {
+                    currentSort = { key: 'priceRise', asc: false };
+                    results.sort((a, b) => b.priceRise - a.priceRise);
+                } else {
+                    currentSort = { key: 'pricePct', asc: false };
+                    results.sort((a, b) => b.pricePct - a.pricePct);
+                }
                 renderResults(days);
             } catch (err) {
                 console.error(err);
@@ -466,7 +566,7 @@
             } finally {
                 progress.style.display = 'none';
                 btn.disabled = false;
-                btn.textContent = 'Scan for Spikes';
+                btn.textContent = isDH ? 'Scan for Holds' : 'Scan for Spikes';
                 scanning = false;
             }
         }
@@ -474,28 +574,67 @@
         function renderResults(days) {
             const card = document.getElementById('resultsCard');
             card.style.display = 'block';
-            document.getElementById('resultTitle').textContent = `Spikes Found · ${days}d lookback`;
+            const isDH = scanMode === 'diamond';
+            document.getElementById('resultTitle').textContent = isDH
+                ? `Diamond Hands · ${days}d lookback`
+                : `Spikes Found · ${days}d lookback`;
             document.getElementById('resultCount').textContent = results.length + ' items';
 
+            // Dynamic table headers
+            const thead = document.querySelector('#resultsTable thead tr');
+            if (isDH) {
+                thead.innerHTML = `
+                    <th data-sort="name" onclick="sortResults('name')">Item</th>
+                    <th data-sort="priceRise" onclick="sortResults('priceRise')">Price Rise</th>
+                    <th data-sort="volDrop" onclick="sortResults('volDrop')">Vol Drop</th>
+                    <th data-sort="curPrice" onclick="sortResults('curPrice')">Current Price</th>
+                    <th data-sort="startPrice" onclick="sortResults('startPrice')">Start Price</th>
+                    <th data-sort="accumVol" onclick="sortResults('accumVol')">Accum Vol</th>
+                    <th data-sort="recentVol" onclick="sortResults('recentVol')">Recent Vol</th>
+                    <th data-sort="limit" onclick="sortResults('limit')">Buy Limit</th>`;
+            } else {
+                thead.innerHTML = `
+                    <th data-sort="name" onclick="sortResults('name')">Item</th>
+                    <th data-sort="pricePct" onclick="sortResults('pricePct')">Price Change</th>
+                    <th data-sort="volPct" onclick="sortResults('volPct')">Vol Change</th>
+                    <th data-sort="curPrice" onclick="sortResults('curPrice')">Current Price</th>
+                    <th data-sort="curVol" onclick="sortResults('curVol')">Recent Vol</th>
+                    <th data-sort="avgPrevPrice" onclick="sortResults('avgPrevPrice')">Avg Prev Price</th>
+                    <th data-sort="avgPrevVol" onclick="sortResults('avgPrevVol')">Avg Prev Vol</th>
+                    <th data-sort="limit" onclick="sortResults('limit')">Buy Limit</th>`;
+            }
             updateSortHeaders();
 
             const body = document.getElementById('resultsBody');
             if (!results.length) {
-                body.innerHTML = '<tr><td colspan="8" class="status-msg">No spikes matching your filters.</td></tr>';
+                body.innerHTML = `<tr><td colspan="8" class="status-msg">No ${isDH ? 'holds' : 'spikes'} matching your filters.</td></tr>`;
                 return;
             }
 
             const scanDays = getSelectedDays();
-            body.innerHTML = results.map(r => `<tr>
-                <td><div class="item-cell">${GE.imgTag(r.meta)}<span class="item-name"><a href="item.html?id=${r.id}&days=${scanDays}">${r.name}</a></span></div></td>
-                <td class="${GE.pctClass(r.pricePct)}">${GE.fmtPct(r.pricePct)}</td>
-                <td class="${GE.pctClass(r.volPct)}">${GE.fmtPct(r.volPct)}</td>
-                <td>${GE.fmtGp(r.curPrice)} gp</td>
-                <td>${GE.fmtGp(r.curVol)}</td>
-                <td>${GE.fmtGp(r.avgPrevPrice)} gp</td>
-                <td>${GE.fmtGp(r.avgPrevVol)}</td>
-                <td>${r.limit ? r.limit.toLocaleString() : '—'}</td>
-            </tr>`).join('');
+            if (isDH) {
+                body.innerHTML = results.map(r => `<tr>
+                    <td><div class="item-cell">${GE.imgTag(r.meta)}<span class="item-name"><a href="item.html?id=${r.id}&days=${scanDays}">${r.name}</a></span></div></td>
+                    <td class="positive">${GE.fmtPct(r.priceRise)}</td>
+                    <td class="negative">-${r.volDrop.toFixed(1)}%</td>
+                    <td>${GE.fmtGp(r.curPrice)} gp</td>
+                    <td>${GE.fmtGp(r.startPrice)} gp</td>
+                    <td>${GE.fmtGp(r.accumVol)}</td>
+                    <td>${GE.fmtGp(r.recentVol)}</td>
+                    <td>${r.limit ? r.limit.toLocaleString() : '—'}</td>
+                </tr>`).join('');
+            } else {
+                body.innerHTML = results.map(r => `<tr>
+                    <td><div class="item-cell">${GE.imgTag(r.meta)}<span class="item-name"><a href="item.html?id=${r.id}&days=${scanDays}">${r.name}</a></span></div></td>
+                    <td class="${GE.pctClass(r.pricePct)}">${GE.fmtPct(r.pricePct)}</td>
+                    <td class="${GE.pctClass(r.volPct)}">${GE.fmtPct(r.volPct)}</td>
+                    <td>${GE.fmtGp(r.curPrice)} gp</td>
+                    <td>${GE.fmtGp(r.curVol)}</td>
+                    <td>${GE.fmtGp(r.avgPrevPrice)} gp</td>
+                    <td>${GE.fmtGp(r.avgPrevVol)}</td>
+                    <td>${r.limit ? r.limit.toLocaleString() : '—'}</td>
+                </tr>`).join('');
+            }
         }
 
         function updateSortHeaders() {
@@ -524,14 +663,24 @@
 
         function exportCSV() {
             if (!results.length) { alert('Run a scan first!'); return; }
-            let csv = 'Item,Price Change %,Vol Change %,Current Price,Current Vol,Avg Prev Price,Avg Prev Vol,Buy Limit\n';
-            results.forEach(r => {
-                csv += `"${r.name.replace(/"/g, '""')}",${r.pricePct},${r.volPct},${r.curPrice},${r.curVol},${r.avgPrevPrice},${r.avgPrevVol},${r.limit}\n`;
-            });
+            const isDH = scanMode === 'diamond';
+            let csv;
+            if (isDH) {
+                csv = 'Item,Price Rise %,Vol Drop %,Current Price,Start Price,Accum Vol,Recent Vol,Buy Limit\n';
+                results.forEach(r => {
+                    csv += `"${r.name.replace(/"/g, '""')}",${r.priceRise},${r.volDrop},${r.curPrice},${r.startPrice},${r.accumVol},${r.recentVol},${r.limit}\n`;
+                });
+            } else {
+                csv = 'Item,Price Change %,Vol Change %,Current Price,Current Vol,Avg Prev Price,Avg Prev Vol,Buy Limit\n';
+                results.forEach(r => {
+                    csv += `"${r.name.replace(/"/g, '""')}",${r.pricePct},${r.volPct},${r.curPrice},${r.curVol},${r.avgPrevPrice},${r.avgPrevVol},${r.limit}\n`;
+                });
+            }
             const blob = new Blob([csv], { type: 'text/csv' });
             const a = document.createElement('a');
             a.href = URL.createObjectURL(blob);
-            a.download = `ge_spikes_${getSelectedDays()}d_${new Date().toISOString().slice(0, 10)}.csv`;
+            const prefix = isDH ? 'ge_diamond_hands' : 'ge_spikes';
+            a.download = `${prefix}_${getSelectedDays()}d_${new Date().toISOString().slice(0, 10)}.csv`;
             a.click();
         }
     </script>
