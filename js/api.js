@@ -270,6 +270,7 @@ const GE = {
     },
 
     pointsForDays(days, timestep) {
+        if (days >= 9999) return 99999;
         const hoursPerStep = { '1h': 1, '6h': 6, '24h': 24 };
         return Math.min(365, Math.ceil((days * 24) / hoursPerStep[timestep]));
     },

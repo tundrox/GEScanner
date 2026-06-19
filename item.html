@@ -46,7 +46,9 @@
                     <button class="tf-tab" data-days="30">30D</button>
                     <button class="tf-tab" data-days="60">60D</button>
                     <button class="tf-tab" data-days="90">90D</button>
+                    <button class="tf-tab" data-days="180">6M</button>
                     <button class="tf-tab" data-days="365">1Y</button>
+                    <button class="tf-tab" data-days="9999">All</button>
                 </div>
             </div>
             <div class="chart-wrap">
@@ -79,7 +81,7 @@
 
         const params = new URLSearchParams(location.search);
         const itemId = params.get('id');
-        const validDays = [1, 7, 30, 60, 90, 365];
+        const validDays = [1, 7, 30, 60, 90, 180, 365, 9999];
         const defaultDays = validDays.includes(parseInt(params.get('days'))) ? parseInt(params.get('days')) : 30;
         if (!itemId) { document.getElementById('heroSection').innerHTML = '<div class="error-msg">No item ID provided. <a href="browse.html">Browse items</a></div>'; }
 
@@ -239,7 +241,7 @@
                     const statEl = document.getElementById('statChange');
                     statEl.innerHTML = `
                         <div class="stat-value ${GE.pctClass(changePct)}">${GE.fmtPct(changePct)}</div>
-                        <div class="stat-label">${days === 1 ? '24H' : days + 'D'} Change</div>
+                        <div class="stat-label">${days === 1 ? '24H' : days === 180 ? '6M' : days === 9999 ? 'All Time' : days >= 365 ? '1Y' : days + 'D'} Change</div>
                     `;
                 }
             }
