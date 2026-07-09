@@ -21,18 +21,20 @@ const GE = {
         catch (e) { /* quota */ }
     },
 
-    async fetch(endpoint, params = {}) {
+    async fetch(endpoint, params = {}, force = false) {
         const url = new URL(this.BASE + endpoint);
         Object.entries(params).forEach(([k, v]) => url.searchParams.set(k, v));
         const key = url.toString();
 
-        // 1. In-memory cache (fastest)
-        const c = this._cache[key];
-        if (c && Date.now() - c.t < this.CACHE_TTL) return c.d;
+        if (!force) {
+            // 1. In-memory cache (fastest)
+            const c = this._cache[key];
+            if (c && Date.now() - c.t < this.CACHE_TTL) return c.d;
 
-        // 2. SessionStorage cache (survives page nav)
-        const ss = this._ssGet(key);
-        if (ss) { this._cache[key] = { d: ss, t: Date.now() }; return ss; }
+            // 2. SessionStorage cache (survives page nav)
+            const ss = this._ssGet(key);
+            if (ss) { this._cache[key] = { d: ss, t: Date.now() }; return ss; }
+        }
 
         // 3. Network fetch
         const res = await fetch(url);
@@ -67,9 +69,9 @@ const GE = {
         return map;
     },
 
-    async getLatest() {
-        // Use preloaded fetch if available
-        if (window.__gePreload && window.__gePreload.latest) {
+    async getLatest(force = false) {
+        // Use preloaded fetch if available (skip when forcing a fresh pull)
+        if (!force && window.__gePreload && window.__gePreload.latest) {
             const data = await window.__gePreload.latest;
             window.__gePreload.latest = null;
             const key = this.BASE + '/latest';
@@ -77,13 +79,13 @@ const GE = {
             this._ssSet(key, data);
             return data;
         }
-        return this.fetch('/latest');
+        return this.fetch('/latest', {}, force);
     },
     async get1h(ts)        { return ts ? this.fetch('/1h', { timestamp: ts }) : this.fetch('/1h'); },
     async get5m(ts)        { return ts ? this.fetch('/5m', { timestamp: ts }) : this.fetch('/5m'); },
-    async getTimeseries(id, timestep) {
-        // Use preloaded timeseries if available (item page only)
-        if (window.__gePreload && window.__gePreload.timeseries) {
+    async getTimeseries(id, timestep, force = false) {
+        // Use preloaded timeseries if available (item page only; skip when forcing)
+        if (!force && window.__gePreload && window.__gePreload.timeseries) {
             const data = await window.__gePreload.timeseries;
             window.__gePreload.timeseries = null;
             const url = new URL(this.BASE + '/timeseries');
@@ -94,7 +96,7 @@ const GE = {
             this._ssSet(key, data);
             return data;
         }
-        return this.fetch('/timeseries', { id, timestep });
+        return this.fetch('/timeseries', { id, timestep }, force);
     },
 
     iconUrl(item) {

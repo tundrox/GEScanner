@@ -51,6 +51,56 @@
             .item-layout { grid-template-columns: 1fr; }
             .item-side { position: static; }
         }
+
+        /* Refresh controls */
+        .chart-controls {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            flex-wrap: wrap;
+            justify-content: flex-end;
+        }
+        .refresh-ctl {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .refresh-btn {
+            width: 30px;
+            height: 30px;
+            border-radius: var(--radius-sm);
+            border: 1px solid rgba(255,255,255,0.08);
+            background: rgba(255,255,255,0.03);
+            color: var(--text-secondary);
+            font-size: 1.1rem;
+            line-height: 1;
+            cursor: pointer;
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .refresh-btn:hover { color: #fff; background: rgba(255,255,255,0.08); border-color: rgba(255,255,255,0.2); }
+        .refresh-btn.spinning { pointer-events: none; }
+        .refresh-btn.spinning span { display: inline-block; animation: spin 0.7s linear infinite; }
+        .refresh-auto {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            font-size: 0.72rem;
+            color: var(--text-secondary);
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            cursor: pointer;
+            user-select: none;
+        }
+        .refresh-auto input { width: 14px; height: 14px; accent-color: #22c55e; cursor: pointer; }
+        .refresh-stamp {
+            font-size: 0.68rem;
+            color: var(--text-muted);
+            font-family: 'Inter', monospace;
+            white-space: nowrap;
+        }
     </style>
 </head>
 <body>
@@ -68,15 +118,22 @@
         <div class="card" id="chartCard" style="display:none;margin-bottom:24px">
             <div class="card-header">
                 <span class="card-title">Price History</span>
-                <div class="tf-tabs" id="chartTabs">
-                    <button class="tf-tab" data-days="1">1D</button>
-                    <button class="tf-tab" data-days="7">7D</button>
-                    <button class="tf-tab" data-days="30">30D</button>
-                    <button class="tf-tab" data-days="60">60D</button>
-                    <button class="tf-tab" data-days="90">90D</button>
-                    <button class="tf-tab" data-days="180">6M</button>
-                    <button class="tf-tab" data-days="365">1Y</button>
-                    <button class="tf-tab" data-days="9999">All</button>
+                <div class="chart-controls">
+                    <div class="refresh-ctl">
+                        <button id="refreshBtn" class="refresh-btn" title="Refresh now">⟳</button>
+                        <label class="refresh-auto" title="Auto-refresh every 60s"><input type="checkbox" id="autoRefresh"> Auto</label>
+                        <span id="refreshStamp" class="refresh-stamp"></span>
+                    </div>
+                    <div class="tf-tabs" id="chartTabs">
+                        <button class="tf-tab" data-days="1">1D</button>
+                        <button class="tf-tab" data-days="7">7D</button>
+                        <button class="tf-tab" data-days="30">30D</button>
+                        <button class="tf-tab" data-days="60">60D</button>
+                        <button class="tf-tab" data-days="90">90D</button>
+                        <button class="tf-tab" data-days="180">6M</button>
+                        <button class="tf-tab" data-days="365">1Y</button>
+                        <button class="tf-tab" data-days="9999">All</button>
+                    </div>
                 </div>
             </div>
             <div class="chart-wrap">
@@ -123,6 +180,100 @@
         let priceChart = null;
         let volChart = null;
         let cachedSeries = {};
+        let itemMeta = null;
+        let currentDays = defaultDays;
+        let autoTimer = null;
+
+        function renderPriceStats(meta, latest) {
+            const buyPrice = latest ? latest.high : null;
+            const sellPrice = latest ? latest.low : null;
+            const margin = buyPrice && sellPrice ? buyPrice - sellPrice : null;
+            const marginPct = margin && buyPrice ? ((margin / buyPrice) * 100).toFixed(1) : null;
+            const flipProfit = margin && meta.limit ? margin * meta.limit : null;
+
+            document.getElementById('priceStats').style.display = '';
+            document.getElementById('priceStats').innerHTML = `
+                <div class="stat-card">
+                    <div class="stat-value" style="color:var(--green);text-shadow:0 0 14px rgba(34,197,94,0.4)">${buyPrice ? GE.fmtGp(buyPrice) : '—'}</div>
+                    <div class="stat-label">Instant Buy</div>
+                    ${buyPrice ? `<div class="stat-sub">${buyPrice.toLocaleString()} gp</div>` : ''}
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value" style="color:var(--red);text-shadow:0 0 14px rgba(239,68,68,0.4)">${sellPrice ? GE.fmtGp(sellPrice) : '—'}</div>
+                    <div class="stat-label">Instant Sell</div>
+                    ${sellPrice ? `<div class="stat-sub">${sellPrice.toLocaleString()} gp</div>` : ''}
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value" style="color:var(--blue);text-shadow:0 0 14px rgba(59,130,246,0.4)">${margin ? GE.fmtGp(margin) : '—'}</div>
+                    <div class="stat-label">Margin</div>
+                    ${marginPct ? `<div class="stat-sub">${marginPct}% spread</div>` : ''}
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value" style="color:#ffffff;text-shadow:0 0 14px rgba(255,255,255,0.2)">${meta.limit ? meta.limit.toLocaleString() : '—'}</div>
+                    <div class="stat-label">Buy Limit</div>
+                    ${flipProfit ? `<div class="stat-sub">Flip: ${GE.fmtGp(flipProfit)} gp</div>` : ''}
+                </div>
+                <div class="stat-card" id="statChange">
+                    <div class="stat-value" style="text-shadow:0 0 14px rgba(255,255,255,0.15)">—</div>
+                    <div class="stat-label">Period Change</div>
+                </div>
+            `;
+
+            document.getElementById('detailCards').style.display = '';
+            document.getElementById('infoCard').innerHTML = `
+                <div class="card-header"><span class="card-title">Item Info</span></div>
+                <table>
+                    <tr><td style="color:var(--text-secondary)">Name</td><td>${meta.name}</td></tr>
+                    <tr><td style="color:var(--text-secondary)">Members</td><td>${meta.members ? 'Yes' : 'No'}</td></tr>
+                    <tr><td style="color:var(--text-secondary)">Buy Limit</td><td>${meta.limit || 'Unknown'}</td></tr>
+                    <tr><td style="color:var(--text-secondary)">Store Value</td><td>${meta.value ? meta.value.toLocaleString() + ' gp' : '—'}</td></tr>
+                    <tr><td style="color:var(--text-secondary)">Examine</td><td>${meta.examine || '—'}</td></tr>
+                </table>
+            `;
+            document.getElementById('alchCard').innerHTML = `
+                <div class="card-header"><span class="card-title">Alchemy Values</span></div>
+                <table>
+                    <tr><td style="color:var(--text-secondary)">High Alch</td><td>${meta.highalch ? meta.highalch.toLocaleString() + ' gp' : '—'}</td></tr>
+                    <tr><td style="color:var(--text-secondary)">Low Alch</td><td>${meta.lowalch ? meta.lowalch.toLocaleString() + ' gp' : '—'}</td></tr>
+                    ${buyPrice && meta.highalch ? `<tr><td style="color:var(--text-secondary)">Alch Profit</td><td class="${meta.highalch - buyPrice - 250 > 0 ? 'positive' : 'negative'}">${(meta.highalch - buyPrice - 250).toLocaleString()} gp</td></tr>` : ''}
+                    ${buyPrice ? `<tr><td style="color:var(--text-secondary)">Buy Price</td><td>${buyPrice.toLocaleString()} gp</td></tr>` : ''}
+                    ${sellPrice ? `<tr><td style="color:var(--text-secondary)">Sell Price</td><td>${sellPrice.toLocaleString()} gp</td></tr>` : ''}
+                </table>
+            `;
+        }
+
+        function markUpdated() {
+            const stamp = document.getElementById('refreshStamp');
+            if (stamp) {
+                const t = new Date();
+                stamp.textContent = 'Updated ' + t.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+            }
+        }
+
+        // Re-pull latest prices + current-timeframe chart, bypassing cache
+        async function refresh(force = true) {
+            if (!itemMeta) return;
+            const btn = document.getElementById('refreshBtn');
+            btn.classList.add('spinning');
+            try {
+                const latestData = await GE.getLatest(force);
+                const latest = (latestData.data || latestData)[itemId];
+                renderPriceStats(itemMeta, latest);
+                delete cachedSeries[`${itemId}_${GE.timestepForDays(currentDays)}`];
+                await loadChart(currentDays, force);
+                markUpdated();
+            } catch (err) {
+                console.error('Refresh failed:', err);
+            } finally {
+                btn.classList.remove('spinning');
+            }
+        }
+
+        function setAutoRefresh(on) {
+            clearInterval(autoTimer);
+            autoTimer = null;
+            if (on) autoTimer = setInterval(() => refresh(true), 60000);
+        }
 
         (async function () {
             if (!itemId) return;
@@ -137,10 +288,9 @@
                     document.getElementById('heroSection').innerHTML = '<div class="error-msg">Item not found. <a href="browse.html">Browse items</a></div>';
                     return;
                 }
+                itemMeta = meta;
 
                 const latest = (latestData.data || latestData)[itemId];
-                const buyPrice = latest ? latest.high : null;
-                const sellPrice = latest ? latest.low : null;
 
                 // Track for Recently Viewed in Tools page
                 try {
@@ -169,61 +319,10 @@
                     </div>
                 `;
 
-                const margin = buyPrice && sellPrice ? buyPrice - sellPrice : null;
-                const marginPct = margin && buyPrice ? ((margin / buyPrice) * 100).toFixed(1) : null;
-                const flipProfit = margin && meta.limit ? margin * meta.limit : null;
-
-                document.getElementById('priceStats').style.display = '';
-                document.getElementById('priceStats').innerHTML = `
-                    <div class="stat-card">
-                        <div class="stat-value" style="color:var(--green);text-shadow:0 0 14px rgba(34,197,94,0.4)">${buyPrice ? GE.fmtGp(buyPrice) : '—'}</div>
-                        <div class="stat-label">Instant Buy</div>
-                        ${buyPrice ? `<div class="stat-sub">${buyPrice.toLocaleString()} gp</div>` : ''}
-                    </div>
-                    <div class="stat-card">
-                        <div class="stat-value" style="color:var(--red);text-shadow:0 0 14px rgba(239,68,68,0.4)">${sellPrice ? GE.fmtGp(sellPrice) : '—'}</div>
-                        <div class="stat-label">Instant Sell</div>
-                        ${sellPrice ? `<div class="stat-sub">${sellPrice.toLocaleString()} gp</div>` : ''}
-                    </div>
-                    <div class="stat-card">
-                        <div class="stat-value" style="color:var(--blue);text-shadow:0 0 14px rgba(59,130,246,0.4)">${margin ? GE.fmtGp(margin) : '—'}</div>
-                        <div class="stat-label">Margin</div>
-                        ${marginPct ? `<div class="stat-sub">${marginPct}% spread</div>` : ''}
-                    </div>
-                    <div class="stat-card">
-                        <div class="stat-value" style="color:#ffffff;text-shadow:0 0 14px rgba(255,255,255,0.2)">${meta.limit ? meta.limit.toLocaleString() : '—'}</div>
-                        <div class="stat-label">Buy Limit</div>
-                        ${flipProfit ? `<div class="stat-sub">Flip: ${GE.fmtGp(flipProfit)} gp</div>` : ''}
-                    </div>
-                    <div class="stat-card" id="statChange">
-                        <div class="stat-value" style="text-shadow:0 0 14px rgba(255,255,255,0.15)">—</div>
-                        <div class="stat-label">Period Change</div>
-                    </div>
-                `;
-
-                document.getElementById('detailCards').style.display = '';
-                document.getElementById('infoCard').innerHTML = `
-                    <div class="card-header"><span class="card-title">Item Info</span></div>
-                    <table>
-                        <tr><td style="color:var(--text-secondary)">Name</td><td>${meta.name}</td></tr>
-                        <tr><td style="color:var(--text-secondary)">Members</td><td>${meta.members ? 'Yes' : 'No'}</td></tr>
-                        <tr><td style="color:var(--text-secondary)">Buy Limit</td><td>${meta.limit || 'Unknown'}</td></tr>
-                        <tr><td style="color:var(--text-secondary)">Store Value</td><td>${meta.value ? meta.value.toLocaleString() + ' gp' : '—'}</td></tr>
-                        <tr><td style="color:var(--text-secondary)">Examine</td><td>${meta.examine || '—'}</td></tr>
-                    </table>
-                `;
-                document.getElementById('alchCard').innerHTML = `
-                    <div class="card-header"><span class="card-title">Alchemy Values</span></div>
-                    <table>
-                        <tr><td style="color:var(--text-secondary)">High Alch</td><td>${meta.highalch ? meta.highalch.toLocaleString() + ' gp' : '—'}</td></tr>
-                        <tr><td style="color:var(--text-secondary)">Low Alch</td><td>${meta.lowalch ? meta.lowalch.toLocaleString() + ' gp' : '—'}</td></tr>
-                        ${buyPrice && meta.highalch ? `<tr><td style="color:var(--text-secondary)">Alch Profit</td><td class="${meta.highalch - buyPrice - 250 > 0 ? 'positive' : 'negative'}">${(meta.highalch - buyPrice - 250).toLocaleString()} gp</td></tr>` : ''}
-                        ${buyPrice ? `<tr><td style="color:var(--text-secondary)">Buy Price</td><td>${buyPrice.toLocaleString()} gp</td></tr>` : ''}
-                        ${sellPrice ? `<tr><td style="color:var(--text-secondary)">Sell Price</td><td>${sellPrice.toLocaleString()} gp</td></tr>` : ''}
-                    </table>
-                `;
+                renderPriceStats(meta, latest);
 
                 await loadChart(defaultDays);
+                markUpdated();
                 document.getElementById('chartCard').style.display = '';
                 document.getElementById('volChartCard').style.display = '';
 
@@ -231,9 +330,13 @@
                     btn.addEventListener('click', async () => {
                         document.querySelectorAll('#chartTabs .tf-tab').forEach(b => b.classList.remove('active'));
                         btn.classList.add('active');
-                        await loadChart(parseInt(btn.dataset.days));
+                        currentDays = parseInt(btn.dataset.days);
+                        await loadChart(currentDays);
                     });
                 });
+
+                document.getElementById('refreshBtn').addEventListener('click', () => refresh(true));
+                document.getElementById('autoRefresh').addEventListener('change', e => setAutoRefresh(e.target.checked));
 
             } catch (err) {
                 console.error(err);
@@ -241,15 +344,15 @@
             }
         })();
 
-        async function loadChart(days) {
+        async function loadChart(days, force = false) {
             const timestep = GE.timestepForDays(days);
             const cacheKey = `${itemId}_${timestep}`;
 
             let series;
-            if (cachedSeries[cacheKey]) {
+            if (!force && cachedSeries[cacheKey]) {
                 series = cachedSeries[cacheKey];
             } else {
-                const ts = await GE.getTimeseries(itemId, timestep);
+                const ts = await GE.getTimeseries(itemId, timestep, force);
                 series = ts.data || [];
                 cachedSeries[cacheKey] = series;
             }
