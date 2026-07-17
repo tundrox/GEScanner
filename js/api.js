@@ -163,6 +163,13 @@ const GE = {
         return n > 0 ? 'positive' : n < 0 ? 'negative' : 'neutral';
     },
 
+    // Grand Exchange tax on a sale: 2% of the sell price, rounded down, capped at 5M gp.
+    // (Sales under 50 gp round down to 0, so they're effectively exempt.)
+    geTax(sellPrice) {
+        if (!sellPrice || sellPrice <= 0) return 0;
+        return Math.min(Math.floor(sellPrice * 0.02), 5000000);
+    },
+
     navHTML(active) {
         const links = [
             ['index.html', 'Dashboard'],

@@ -196,8 +196,6 @@
         const latest = latestData.data;
         const NATURE_ID = 561;
 
-        function geTax(sell) { return Math.min(Math.floor(sell * 0.02), 5000000); }
-
         // ===================== Flip Finder =====================
         let flipData = [], flipSort = { col: 'margin', dir: 'desc' };
 
@@ -213,7 +211,7 @@
                 if (m.limit && m.limit < minLimit) continue;
                 if (mf === 'members' && !m.members) continue;
                 if (mf === 'f2p' && m.members) continue;
-                const tax = geTax(p.high);
+                const tax = GE.geTax(p.high);
                 const margin = p.high - p.low - tax;
                 if (margin < minMargin) continue;
                 out.push({

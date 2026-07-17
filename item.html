@@ -187,9 +187,11 @@
         function renderPriceStats(meta, latest) {
             const buyPrice = latest ? latest.high : null;
             const sellPrice = latest ? latest.low : null;
-            const margin = buyPrice && sellPrice ? buyPrice - sellPrice : null;
-            const marginPct = margin && buyPrice ? ((margin / buyPrice) * 100).toFixed(1) : null;
-            const flipProfit = margin && meta.limit ? margin * meta.limit : null;
+            const grossMargin = buyPrice && sellPrice ? buyPrice - sellPrice : null;
+            // When flipping you sell at the instant-buy price, so the 2% GE tax is on `buyPrice`.
+            const tax = buyPrice ? GE.geTax(buyPrice) : 0;
+            const margin = grossMargin != null ? grossMargin - tax : null;   // net of tax
+            const flipProfit = margin != null && meta.limit ? margin * meta.limit : null;
 
             document.getElementById('priceStats').style.display = '';
             document.getElementById('priceStats').innerHTML = `
@@ -204,9 +206,9 @@
                     ${sellPrice ? `<div class="stat-sub">${sellPrice.toLocaleString()} gp</div>` : ''}
                 </div>
                 <div class="stat-card">
-                    <div class="stat-value" style="color:var(--blue);text-shadow:0 0 14px rgba(59,130,246,0.4)">${margin ? GE.fmtGp(margin) : '—'}</div>
-                    <div class="stat-label">Margin</div>
-                    ${marginPct ? `<div class="stat-sub">${marginPct}% spread</div>` : ''}
+                    <div class="stat-value ${margin == null ? '' : margin >= 0 ? 'positive' : 'negative'}" style="text-shadow:0 0 14px rgba(59,130,246,0.3)">${margin != null ? GE.fmtGp(margin) : '—'}</div>
+                    <div class="stat-label">Margin After Tax</div>
+                    ${grossMargin != null ? `<div class="stat-sub">${GE.fmtGp(grossMargin)} − ${GE.fmtGp(tax)} tax</div>` : ''}
                 </div>
                 <div class="stat-card">
                     <div class="stat-value" style="color:#ffffff;text-shadow:0 0 14px rgba(255,255,255,0.2)">${meta.limit ? meta.limit.toLocaleString() : '—'}</div>
