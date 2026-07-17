@@ -38,8 +38,8 @@
                     <option value="gainers">Top Gainers</option>
                     <option value="losers">Top Losers</option>
                     <option value="volume">Unusual Volume</option>
-                    <option value="52high">52-Week Highs</option>
-                    <option value="52low">52-Week Lows</option>
+                    <option value="52high">Highs</option>
+                    <option value="52low">Lows</option>
                 </select>
             </div>
             <div class="control-group" id="periodGroup">
@@ -104,6 +104,7 @@
         let _mapping, _hourly, _latest;
         let _viewCache = {};
         let _currentView = 'all';
+        const PERIOD_LABEL = { 1: '24H', 7: '7D', 30: '30D', 60: '60D', 90: '90D', 180: '6M', 365: '1Y' };
 
         (async function () {
             try {
@@ -126,8 +127,7 @@
                     allItems.push({
                         id: meta.id, meta, price, vol,
                         change: 0, volRatio: 0,
-                        yearHigh: null, yearLow: null,
-                        highDaysAgo: null, lowDaysAgo: null
+                        pts: null  // price points [[t, avgHighPrice], ...], loaded on demand
                     });
                 });
 
@@ -221,17 +221,12 @@
                 return;
             }
 
-            // Check sessionStorage for cached 52-week results
+            // Check sessionStorage for cached price points
             const cached = GE.load52WeekCache();
             if (cached) {
                 cached.forEach(ci => {
                     const idx = allItems.findIndex(a => String(a.id) === String(ci.id));
-                    if (idx !== -1) {
-                        allItems[idx].yearHigh = ci.yh;
-                        allItems[idx].yearLow = ci.yl;
-                        allItems[idx].highDaysAgo = ci.hd;
-                        allItems[idx].lowDaysAgo = ci.ld;
-                    }
+                    if (idx !== -1) allItems[idx].pts = ci.pts;
                 });
                 _viewCache['52week'] = true;
                 currentPage = 1;
@@ -250,12 +245,11 @@
                 .filter(i => i.price >= 100000 && !byVolume.some(v => v.id === i.id));
             const ranked = [...byVolume, ...highValue];
 
-            const nowSec = Math.floor(Date.now() / 1000);
             const BATCH = 10;
             let done = 0;
             const cacheEntries = [];
 
-            status.innerHTML = `<div class="card"><div class="loading"><div class="spinner"></div>Scanning 0 / ${ranked.length} items for 52-week data...<div style="margin-top:12px;background:rgba(255,255,255,0.06);border-radius:8px;height:6px;overflow:hidden"><div id="weekProgress" style="height:100%;background:rgba(255,255,255,0.6);border-radius:8px;width:0;transition:width 0.3s"></div></div></div></div>`;
+            status.innerHTML = `<div class="card"><div class="loading"><div class="spinner"></div>Scanning 0 / ${ranked.length} items for price history...<div style="margin-top:12px;background:rgba(255,255,255,0.06);border-radius:8px;height:6px;overflow:hidden"><div id="weekProgress" style="height:100%;background:rgba(255,255,255,0.6);border-radius:8px;width:0;transition:width 0.3s"></div></div></div></div>`;
 
             for (let i = 0; i < ranked.length; i += BATCH) {
                 const batch = ranked.slice(i, i + BATCH);
@@ -270,24 +264,15 @@
 
                 results.forEach(({ item, data }) => {
                     if (data.length < 30) return;
-                    let yh = -Infinity, yl = Infinity, yhDate = 0, ylDate = 0;
-                    data.forEach(d => {
-                        const p = d.avgHighPrice;
-                        if (!p) return;
-                        if (p >= yh) { yh = p; yhDate = d.timestamp; }
-                        if (p <= yl) { yl = p; ylDate = d.timestamp; }
-                    });
-                    if (yh === -Infinity) return;
+                    // Keep only valid price points as compact [timestamp, avgHighPrice] pairs
+                    const pts = [];
+                    data.forEach(d => { if (d.avgHighPrice) pts.push([d.timestamp, d.avgHighPrice]); });
+                    if (pts.length < 30) return;
 
                     const idx = allItems.findIndex(a => a.id === item.id);
                     if (idx === -1) return;
-                    const hd = Math.floor((nowSec - yhDate) / 86400);
-                    const ld = Math.floor((nowSec - ylDate) / 86400);
-                    allItems[idx].yearHigh = yh;
-                    allItems[idx].yearLow = yl;
-                    allItems[idx].highDaysAgo = hd;
-                    allItems[idx].lowDaysAgo = ld;
-                    cacheEntries.push({ id: item.id, yh, yl, hd, ld });
+                    allItems[idx].pts = pts;
+                    cacheEntries.push({ id: item.id, pts });
                 });
 
                 done += batch.length;
@@ -314,6 +299,19 @@
             const view = _currentView;
             const period = parseInt(document.getElementById('periodSelect').value);
 
+            // For high/low views, compute the extreme over the selected lookback window
+            if (view === '52high' || view === '52low') {
+                const nowSec = Math.floor(Date.now() / 1000);
+                allItems.forEach(i => {
+                    if (!i.pts) { i._wHi = i._wLo = null; return; }
+                    const ex = GE.windowExtreme(i.pts, period, nowSec);
+                    if (!ex) { i._wHi = i._wLo = null; return; }
+                    i._wHi = ex.hi; i._wLo = ex.lo;
+                    i._wHiDays = Math.floor((nowSec - ex.hiT) / 86400);
+                    i._wLoDays = Math.floor((nowSec - ex.loT) / 86400);
+                });
+            }
+
             filtered = allItems.filter(i => {
                 if (q && !i.meta.name.toLowerCase().includes(q)) return false;
                 if (memberFilter === 'members' && !i.meta.members) return false;
@@ -323,8 +321,8 @@
                 if (view === 'gainers') return i.change > 0 && i.vol >= 10;
                 if (view === 'losers') return i.change < 0 && i.vol >= 10;
                 if (view === 'volume') return i.volRatio > 1.5 && i.vol >= 10;
-                if (view === '52high') return i.yearHigh !== null && i.price >= i.yearHigh * 0.95 && i.highDaysAgo !== null && i.highDaysAgo <= period;
-                if (view === '52low') return i.yearLow !== null && i.price <= i.yearLow * 1.05 && i.lowDaysAgo !== null && i.lowDaysAgo <= period;
+                if (view === '52high') return i._wHi != null && i.price >= i._wHi * 0.95;
+                if (view === '52low') return i._wLo != null && i.price <= i._wLo * 1.05;
 
                 return true;
             });
@@ -333,8 +331,9 @@
                 case 'gainers': if (sortBy === 'name') filtered.sort((a, b) => b.change - a.change); break;
                 case 'losers': if (sortBy === 'name') filtered.sort((a, b) => a.change - b.change); break;
                 case 'volume': if (sortBy === 'name') filtered.sort((a, b) => b.volRatio - a.volRatio); break;
-                case '52high': if (sortBy === 'name') filtered.sort((a, b) => a.highDaysAgo - b.highDaysAgo); break;
-                case '52low': if (sortBy === 'name') filtered.sort((a, b) => a.lowDaysAgo - b.lowDaysAgo); break;
+                // Closest to the window extreme first
+                case '52high': if (sortBy === 'name') filtered.sort((a, b) => (b.price / b._wHi) - (a.price / a._wHi)); break;
+                case '52low': if (sortBy === 'name') filtered.sort((a, b) => (a.price / a._wLo) - (b.price / b._wLo)); break;
             }
 
             if (view !== 'all' && sortBy === 'name') {
@@ -356,6 +355,7 @@
 
         function renderPage() {
             const view = _currentView;
+            const period = parseInt(document.getElementById('periodSelect').value);
             const totalPages = Math.ceil(filtered.length / PER_PAGE);
             if (currentPage > totalPages) currentPage = totalPages || 1;
 
@@ -379,13 +379,13 @@
                 } else if (view === 'volume') {
                     rightBottom = `<span class="${i.volRatio > 2 ? 'positive' : 'neutral'}">${i.volRatio.toFixed(1)}x vol</span>`;
                 } else if (view === '52high') {
-                    const d = i.highDaysAgo;
+                    const d = i._wHiDays;
                     const when = d === 0 ? 'Today' : d === 1 ? 'Yesterday' : d + 'd ago';
-                    rightBottom = `<span class="positive">52W High · ${when}</span>`;
+                    rightBottom = `<span class="positive">${PERIOD_LABEL[period]} High · ${when}</span>`;
                 } else if (view === '52low') {
-                    const d = i.lowDaysAgo;
+                    const d = i._wLoDays;
                     const when = d === 0 ? 'Today' : d === 1 ? 'Yesterday' : d + 'd ago';
-                    rightBottom = `<span class="negative">52W Low · ${when}</span>`;
+                    rightBottom = `<span class="negative">${PERIOD_LABEL[period]} Low · ${when}</span>`;
                 }
 
                 return `

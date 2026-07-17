@@ -277,22 +277,39 @@ const GE = {
         return Math.min(365, Math.ceil((days * 24) / hoursPerStep[timestep]));
     },
 
-    // --- 52-week scan cache (survives page navigation) ---
+    // --- High/Low scan cache (survives page navigation) ---
+    // v2 stores compact price points per item: { id, pts: [[timestamp, avgHighPrice], ...] }
+    // so each page can compute the high/low over whatever lookback window is selected.
     save52WeekCache(data) {
         try {
-            sessionStorage.setItem('ge_52week', JSON.stringify({ d: data, t: Date.now() }));
+            sessionStorage.setItem('ge_52week_v2', JSON.stringify({ d: data, t: Date.now() }));
         } catch (e) { /* quota */ }
     },
     load52WeekCache() {
         try {
-            const raw = sessionStorage.getItem('ge_52week');
+            const raw = sessionStorage.getItem('ge_52week_v2');
             if (!raw) return null;
             const p = JSON.parse(raw);
-            // 52-week data valid for 15 minutes
+            // Scan data valid for 15 minutes
             if (Date.now() - p.t < 15 * 60 * 1000) return p.d;
-            sessionStorage.removeItem('ge_52week');
+            sessionStorage.removeItem('ge_52week_v2');
         } catch (e) { /* ignore */ }
         return null;
+    },
+
+    // Highest/lowest avgHighPrice (and when) within the last `periodDays` of a point series.
+    // pts: [[timestamp_sec, price], ...].  Returns null if no valid point in the window.
+    windowExtreme(pts, periodDays, nowSec) {
+        const cutoff = nowSec - periodDays * 86400;
+        let hi = -Infinity, lo = Infinity, hiT = 0, loT = 0;
+        for (let k = 0; k < pts.length; k++) {
+            const t = pts[k][0], p = pts[k][1];
+            if (!p || t < cutoff) continue;
+            if (p >= hi) { hi = p; hiT = t; }
+            if (p <= lo) { lo = p; loT = t; }
+        }
+        if (hi === -Infinity) return null;
+        return { hi, lo, hiT, loT };
     },
 
     // --- Preload common data on every page ---

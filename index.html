@@ -123,25 +123,26 @@
         </div>
 
         <div class="dash-section">
-            <span class="dash-section-title"><span class="dot dot-blue"></span> 52-Week Extremes</span>
+            <span class="dash-section-title"><span class="dot dot-blue"></span> Price Extremes</span>
             <div class="tf-tabs" id="weekTabs">
                 <button class="tf-tab active" data-days="7">Past Week</button>
                 <button class="tf-tab" data-days="30">Past Month</button>
                 <button class="tf-tab" data-days="90">Past 3 Months</button>
+                <button class="tf-tab" data-days="365">Past Year</button>
             </div>
         </div>
         <div class="grid-2" id="weekSection" style="margin-bottom:24px">
             <div class="card dash-card" id="highsCard">
                 <div class="card-header">
-                    <span class="card-title">52-Week Highs</span>
-                    <span class="card-badge badge-green">New High</span>
+                    <span class="card-title">Highs</span>
+                    <span class="card-badge badge-green">At High</span>
                 </div>
                 <div class="loading"><div class="spinner"></div>Scanning items...</div>
             </div>
             <div class="card dash-card" id="lowsCard">
                 <div class="card-header">
-                    <span class="card-title">52-Week Lows</span>
-                    <span class="card-badge badge-red">New Low</span>
+                    <span class="card-title">Lows</span>
+                    <span class="card-badge badge-red">At Low</span>
                 </div>
                 <div class="loading"><div class="spinner"></div>Scanning items...</div>
             </div>
@@ -154,7 +155,7 @@
         GE.initAutocomplete();
 
         let _mapping, _now, _nowData;
-        let _52weekAll = { highs: [], lows: [] };
+        let _52weekItems = [];  // { id, meta, curPrice, pts }
         let _allMovers = [];
         let _curDays = 1;
 
@@ -347,24 +348,14 @@
             try {
                 const cached = GE.load52WeekCache();
                 if (cached) {
-                    const highs = [];
-                    const lows = [];
-                    const tolerance = 0.05;
+                    _52weekItems = [];
                     cached.forEach(ci => {
                         const meta = mapping[ci.id];
                         if (!meta) return;
                         const d = nowData[ci.id];
                         const cur = d ? (d.avgHighPrice || d.avgLowPrice || 0) : 0;
-                        if (cur >= ci.yh * (1 - tolerance)) {
-                            highs.push({ id: ci.id, meta, curPrice: cur, yearHigh: ci.yh, yearLow: ci.yl, highDaysAgo: ci.hd, pctFromHigh: ((cur - ci.yh) / ci.yh) * 100 });
-                        }
-                        if (cur <= ci.yl * (1 + tolerance)) {
-                            lows.push({ id: ci.id, meta, curPrice: cur, yearHigh: ci.yh, yearLow: ci.yl, lowDaysAgo: ci.ld, pctFromLow: ((cur - ci.yl) / ci.yl) * 100 });
-                        }
+                        _52weekItems.push({ id: ci.id, meta, curPrice: cur, pts: ci.pts });
                     });
-                    highs.sort((a, b) => a.highDaysAgo - b.highDaysAgo);
-                    lows.sort((a, b) => a.lowDaysAgo - b.lowDaysAgo);
-                    _52weekAll = { highs, lows };
                     filter52Week(7);
                     bindWeekTabs();
                     return;
@@ -392,10 +383,8 @@
                 ranked.sort((a, b) => b.curVol - a.curVol);
                 const candidates = [...ranked.slice(0, 250), ...highValue];
 
-                const highs = [];
-                const lows = [];
                 const cacheEntries = [];
-                const nowSec = Math.floor(Date.now() / 1000);
+                _52weekItems = [];
                 const BATCH = 10;
 
                 for (let i = 0; i < candidates.length; i += BATCH) {
@@ -411,35 +400,16 @@
 
                     results.forEach(({ item, data }) => {
                         if (data.length < 30) return;
-                        let yearHigh = -Infinity, yearLow = Infinity, highDate = 0, lowDate = 0;
-                        data.forEach(d => {
-                            const p = d.avgHighPrice;
-                            if (!p) return;
-                            if (p >= yearHigh) { yearHigh = p; highDate = d.timestamp; }
-                            if (p <= yearLow) { yearLow = p; lowDate = d.timestamp; }
-                        });
-                        if (yearHigh === -Infinity) return;
-
-                        const cur = item.curPrice;
-                        const tolerance = 0.05;
-                        const highDaysAgo = Math.floor((nowSec - highDate) / 86400);
-                        const lowDaysAgo = Math.floor((nowSec - lowDate) / 86400);
-                        cacheEntries.push({ id: item.id, yh: yearHigh, yl: yearLow, hd: highDaysAgo, ld: lowDaysAgo });
-
-                        if (cur >= yearHigh * (1 - tolerance)) {
-                            highs.push({ id: item.id, meta: item.meta, curPrice: cur, yearHigh, yearLow, highDaysAgo, pctFromHigh: ((cur - yearHigh) / yearHigh) * 100 });
-                        }
-                        if (cur <= yearLow * (1 + tolerance)) {
-                            lows.push({ id: item.id, meta: item.meta, curPrice: cur, yearHigh, yearLow, lowDaysAgo, pctFromLow: ((cur - yearLow) / yearLow) * 100 });
-                        }
+                        const pts = [];
+                        data.forEach(d => { if (d.avgHighPrice) pts.push([d.timestamp, d.avgHighPrice]); });
+                        if (pts.length < 30) return;
+                        _52weekItems.push({ id: item.id, meta: item.meta, curPrice: item.curPrice, pts });
+                        cacheEntries.push({ id: item.id, pts });
                     });
                     await new Promise(r => setTimeout(r, 200));
                 }
 
                 GE.save52WeekCache(cacheEntries);
-                highs.sort((a, b) => a.highDaysAgo - b.highDaysAgo);
-                lows.sort((a, b) => a.lowDaysAgo - b.lowDaysAgo);
-                _52weekAll = { highs, lows };
                 filter52Week(7);
                 bindWeekTabs();
 
@@ -463,32 +433,47 @@
             });
         }
 
-        function filter52Week(withinDays) {
-            const filteredHighs = _52weekAll.highs.filter(i => i.highDaysAgo <= withinDays);
-            const filteredLows = _52weekAll.lows.filter(i => i.lowDaysAgo <= withinDays);
-            render52('highsCard', filteredHighs.slice(0, 15), true);
-            render52('lowsCard', filteredLows.slice(0, 15), false);
+        function filter52Week(windowDays) {
+            const nowSec = Math.floor(Date.now() / 1000);
+            const tol = 0.05;
+            const highs = [], lows = [];
+            _52weekItems.forEach(i => {
+                if (!i.pts) return;
+                const ex = GE.windowExtreme(i.pts, windowDays, nowSec);
+                if (!ex) return;
+                const cur = i.curPrice;
+                if (cur >= ex.hi * (1 - tol)) {
+                    highs.push({ ...i, extreme: ex.hi, daysAgo: Math.floor((nowSec - ex.hiT) / 86400), atExtreme: cur >= ex.hi });
+                }
+                if (cur <= ex.lo * (1 + tol)) {
+                    lows.push({ ...i, extreme: ex.lo, daysAgo: Math.floor((nowSec - ex.loT) / 86400), atExtreme: cur <= ex.lo });
+                }
+            });
+            // Closest to the extreme first
+            highs.sort((a, b) => (b.curPrice / b.extreme) - (a.curPrice / a.extreme));
+            lows.sort((a, b) => (a.curPrice / a.extreme) - (b.curPrice / b.extreme));
+            render52('highsCard', highs.slice(0, 15), true, windowDays);
+            render52('lowsCard', lows.slice(0, 15), false, windowDays);
         }
 
-        function render52(containerId, data, isHighs) {
+        function render52(containerId, data, isHighs, windowDays) {
             const el = document.getElementById(containerId);
             const header = el.querySelector('.card-header').outerHTML;
             if (!data.length) {
-                el.innerHTML = header + '<div class="status-msg">No items hit 52-week ' + (isHighs ? 'highs' : 'lows') + ' in this period</div>';
+                el.innerHTML = header + '<div class="status-msg">No items near their ' + (isHighs ? 'high' : 'low') + ' in this window</div>';
                 return;
             }
             el.innerHTML = header + `<div class="table-wrap"><table>
-                <thead><tr><th>Item</th><th>Price</th><th>52W ${isHighs ? 'High' : 'Low'}</th><th>When</th></tr></thead>
+                <thead><tr><th>Item</th><th>Price</th><th>${isHighs ? 'High' : 'Low'}</th><th>When</th></tr></thead>
                 <tbody>${data.map(i => {
-                    const daysAgo = isHighs ? i.highDaysAgo : i.lowDaysAgo;
+                    const daysAgo = i.daysAgo;
                     const when = daysAgo === 0 ? 'Today' : daysAgo === 1 ? 'Yesterday' : daysAgo + 'd ago';
                     const whenClass = daysAgo === 0 ? 'when-today' : daysAgo <= 3 ? 'when-recent' : 'when-old';
-                    const extreme = isHighs ? i.yearHigh : i.yearLow;
-                    const extremeClass = isHighs ? (i.curPrice >= i.yearHigh ? 'positive' : '') : (i.curPrice <= i.yearLow ? 'negative' : '');
+                    const extremeClass = i.atExtreme ? (isHighs ? 'positive' : 'negative') : '';
                     return `<tr>
-                    <td><div class="item-cell">${GE.imgTag(i.meta)}<span class="item-name"><a href="item.html?id=${i.id}&days=365">${i.meta.name}</a></span></div></td>
+                    <td><div class="item-cell">${GE.imgTag(i.meta)}<span class="item-name"><a href="item.html?id=${i.id}&days=${windowDays}">${i.meta.name}</a></span></div></td>
                     <td>${GE.fmtGp(i.curPrice)}</td>
-                    <td class="${extremeClass}">${GE.fmtGp(extreme)}</td>
+                    <td class="${extremeClass}">${GE.fmtGp(i.extreme)}</td>
                     <td><span class="when-badge ${whenClass}">${when}</span></td>
                 </tr>`;}).join('')}</tbody>
             </table></div>`;
