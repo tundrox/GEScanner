@@ -389,7 +389,8 @@
                 }
 
                 return `
-                <a href="item.html?id=${i.id}&days=${document.getElementById('periodSelect').value}" class="item-card">
+                <div class="item-card-wrap">
+                <a href="item.html?id=${i.id}&days=${period}" class="item-card">
                     <div class="icon-wrap">
                         <img src="${GE.iconUrl(i.meta)}" width="32" height="32" loading="lazy" data-letter="${i.meta.name[0]}" onerror="GE.onImgError(this)" alt="">
                     </div>
@@ -401,7 +402,9 @@
                         <div class="price">${rightTop}</div>
                         <div class="meta">${rightBottom}</div>
                     </div>
-                </a>`;
+                </a>
+                ${GE.wikiLink(i.meta, 'w', 'wiki-card-badge')}
+                </div>`;
             }).join('');
 
             renderPagination(totalPages);

@@ -1,6 +1,7 @@
 const GE = {
     BASE: 'https://prices.runescape.wiki/api/v1/osrs',
     WIKI_IMG: 'https://oldschool.runescape.wiki/w/Special:FilePath/',
+    WIKI_PAGE: 'https://oldschool.runescape.wiki/w/',
     _cache: {},
     _mapping: null,
     CACHE_TTL: 5 * 60 * 1000,
@@ -107,6 +108,22 @@ const GE = {
     wikiIconUrl(item) {
         if (!item || !item.icon) return '';
         return this.WIKI_IMG + item.icon.replace(/ /g, '_');
+    },
+
+    // Link to the item's OSRS Wiki page (spaces become underscores).
+    // Useful for checking supply sources — shops, alt currencies, drop rates.
+    wikiUrl(item) {
+        const name = typeof item === 'string' ? item : (item && item.name);
+        if (!name) return '';
+        return this.WIKI_PAGE + encodeURIComponent(name.replace(/ /g, '_'));
+    },
+
+    // Small "w" badge that opens the wiki page in a new tab.
+    wikiLink(item, label, extraClass) {
+        const url = this.wikiUrl(item);
+        if (!url) return '';
+        const cls = 'wiki-link' + (extraClass ? ' ' + extraClass : '');
+        return `<a href="${url}" class="${cls}" target="_blank" rel="noopener noreferrer" title="View on OSRS Wiki" onclick="event.stopPropagation()">${label || 'w'}</a>`;
     },
 
     onImgError(el) {

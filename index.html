@@ -311,7 +311,7 @@
             el.innerHTML = header + `<div class="table-wrap"><table>
                 <thead><tr><th>Item</th><th>Price</th><th>${label}</th><th>Vol</th></tr></thead>
                 <tbody>${data.map(i => `<tr>
-                    <td><div class="item-cell">${GE.imgTag(i.meta)}<span class="item-name"><a href="item.html?id=${i.id}&days=${days}">${i.meta.name}</a></span></div></td>
+                    <td><div class="item-cell">${GE.imgTag(i.meta)}<span class="item-name"><a href="item.html?id=${i.id}&days=${days}">${i.meta.name}</a></span>${GE.wikiLink(i.meta)}</div></td>
                     <td>${GE.fmtGp(i.curPrice)}</td>
                     <td class="${GE.pctClass(i.pricePct)}">${GE.fmtPct(i.pricePct)}</td>
                     <td>${GE.fmtGp(i.curVol)}</td>
@@ -335,7 +335,7 @@
                         ? 'color:#ffffff;font-weight:700;text-shadow:0 0 10px rgba(255,255,255,0.4)'
                         : 'font-weight:600';
                     return `<tr>
-                    <td><div class="item-cell">${GE.imgTag(i.meta)}<span class="item-name"><a href="item.html?id=${i.id}&days=${days}">${i.meta.name}</a></span></div></td>
+                    <td><div class="item-cell">${GE.imgTag(i.meta)}<span class="item-name"><a href="item.html?id=${i.id}&days=${days}">${i.meta.name}</a></span>${GE.wikiLink(i.meta)}</div></td>
                     <td>${GE.fmtGp(i.curPrice)}</td>
                     <td>${GE.fmtGp(i.curVol)}</td>
                     <td style="color:var(--text-muted)">${GE.fmtGp(Math.round(i.avgVol))}</td>
@@ -471,7 +471,7 @@
                     const whenClass = daysAgo === 0 ? 'when-today' : daysAgo <= 3 ? 'when-recent' : 'when-old';
                     const extremeClass = i.atExtreme ? (isHighs ? 'positive' : 'negative') : '';
                     return `<tr>
-                    <td><div class="item-cell">${GE.imgTag(i.meta)}<span class="item-name"><a href="item.html?id=${i.id}&days=${windowDays}">${i.meta.name}</a></span></div></td>
+                    <td><div class="item-cell">${GE.imgTag(i.meta)}<span class="item-name"><a href="item.html?id=${i.id}&days=${windowDays}">${i.meta.name}</a></span>${GE.wikiLink(i.meta)}</div></td>
                     <td>${GE.fmtGp(i.curPrice)}</td>
                     <td class="${extremeClass}">${GE.fmtGp(i.extreme)}</td>
                     <td><span class="when-badge ${whenClass}">${when}</span></td>

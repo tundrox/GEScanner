@@ -506,6 +506,76 @@ tr:hover td { background: rgba(255, 255, 255, 0.02); }
 .negative { color: var(--red); }
 .neutral { color: var(--text-secondary); }
 
+/* ── OSRS Wiki link badge ── */
+.wiki-link {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 16px;
+    height: 16px;
+    flex-shrink: 0;
+    border-radius: 3px;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    background: rgba(255, 255, 255, 0.04);
+    color: var(--text-muted);
+    font-size: 0.6rem;
+    font-weight: 700;
+    line-height: 1;
+    text-decoration: none;
+    opacity: 0.5;
+    transition: all 0.15s;
+}
+
+.wiki-link:hover {
+    opacity: 1;
+    color: #ffffff;
+    background: rgba(255, 255, 255, 0.12);
+    border-color: rgba(255, 255, 255, 0.25);
+}
+
+/* Larger pill variant for the item detail hero */
+.wiki-link-lg {
+    width: auto;
+    height: auto;
+    gap: 5px;
+    padding: 3px 10px;
+    border-radius: 20px;
+    font-size: 0.7rem;
+    font-weight: 500;
+    opacity: 1;
+    color: var(--text-secondary);
+}
+
+/* Corner badge on item cards — sits outside the card's <a> so the card
+   itself stays a plain link (right-click / middle-click still work). */
+.item-card-wrap {
+    position: relative;
+    display: flex;
+}
+
+.item-card-wrap .item-card { flex: 1; min-width: 0; }
+
+.wiki-card-badge {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    z-index: 2;
+    opacity: 0;
+    transition: opacity 0.2s, transform 0.3s ease;
+}
+
+.item-card-wrap:hover .wiki-card-badge {
+    opacity: 0.6;
+    transform: translateY(-3px);   /* match the card's hover lift */
+}
+
+.item-card-wrap .wiki-card-badge:hover { opacity: 1; }
+
+/* Touch devices have no hover — keep the badge visible */
+@media (hover: none) {
+    .wiki-card-badge { opacity: 0.5; }
+}
+
 /* ── Item Cards (Browse) ── */
 /* ─── Item Card: Neon Edge ─── */
 a.item-card { color: inherit; text-decoration: none; }

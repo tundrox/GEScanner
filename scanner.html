@@ -616,7 +616,7 @@
             const scanDays = getSelectedDays();
             if (isDH) {
                 body.innerHTML = results.map(r => `<tr>
-                    <td><div class="item-cell">${GE.imgTag(r.meta)}<span class="item-name"><a href="item.html?id=${r.id}&days=${scanDays}">${r.name}</a></span></div></td>
+                    <td><div class="item-cell">${GE.imgTag(r.meta)}<span class="item-name"><a href="item.html?id=${r.id}&days=${scanDays}">${r.name}</a></span>${GE.wikiLink(r.meta)}</div></td>
                     <td class="positive">${GE.fmtPct(r.priceRise)}</td>
                     <td class="negative">-${r.volDrop.toFixed(1)}%</td>
                     <td>${GE.fmtGp(r.curPrice)} gp</td>
@@ -627,7 +627,7 @@
                 </tr>`).join('');
             } else {
                 body.innerHTML = results.map(r => `<tr>
-                    <td><div class="item-cell">${GE.imgTag(r.meta)}<span class="item-name"><a href="item.html?id=${r.id}&days=${scanDays}">${r.name}</a></span></div></td>
+                    <td><div class="item-cell">${GE.imgTag(r.meta)}<span class="item-name"><a href="item.html?id=${r.id}&days=${scanDays}">${r.name}</a></span>${GE.wikiLink(r.meta)}</div></td>
                     <td class="${GE.pctClass(r.pricePct)}">${GE.fmtPct(r.pricePct)}</td>
                     <td class="${GE.pctClass(r.volPct)}">${GE.fmtPct(r.volPct)}</td>
                     <td>${GE.fmtGp(r.curPrice)} gp</td>

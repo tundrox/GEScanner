@@ -247,7 +247,7 @@
             for (const r of top) {
                 const c = r.margin > 0 ? 'positive' : r.margin < 0 ? 'negative' : 'neutral';
                 h += `<tr>
-                    <td><a href="item.html?id=${r.id}" class="item-cell">${GE.imgTag(r.meta,24)}<span class="item-name">${r.name}</span></a></td>
+                    <td><div class="item-cell">${GE.imgTag(r.meta,24)}<span class="item-name"><a href="item.html?id=${r.id}">${r.name}</a></span>${GE.wikiLink(r.meta)}</div></td>
                     <td style="text-align:right">${GE.fmtGp(r.buy)}</td>
                     <td style="text-align:right">${GE.fmtGp(r.sell)}</td>
                     <td style="text-align:right;color:var(--red)">${GE.fmtGp(r.tax)}</td>
@@ -322,7 +322,7 @@
             for (const r of top) {
                 const c = r.profit > 0 ? 'positive' : 'negative';
                 h += `<tr>
-                    <td><a href="item.html?id=${r.id}" class="item-cell">${GE.imgTag(r.meta,24)}<span class="item-name">${r.name}</span></a></td>
+                    <td><div class="item-cell">${GE.imgTag(r.meta,24)}<span class="item-name"><a href="item.html?id=${r.id}">${r.name}</a></span>${GE.wikiLink(r.meta)}</div></td>
                     <td style="text-align:right">${GE.fmtGp(r.buy)}</td>
                     <td style="text-align:right;color:var(--green)">${GE.fmtGp(r.alch)}</td>
                     <td style="text-align:right;color:var(--red)">${GE.fmtGp(r.nature)}</td>
@@ -364,14 +364,17 @@
                 if (!m) continue;
                 const p = latest[id];
                 const price = p ? (p.high || p.low || 0) : 0;
-                h += `<a href="item.html?id=${id}" class="item-card">
+                h += `<div class="item-card-wrap">
+                    <a href="item.html?id=${id}" class="item-card">
                     <div class="icon-wrap">${GE.imgTag(m, 32)}</div>
                     <div class="info">
                         <div class="name">${m.name}</div>
                         <div class="meta">${m.members ? 'P2P' : 'F2P'}${m.limit ? ' · Lim: ' + GE.fmtGp(m.limit) : ''}</div>
                     </div>
                     <div class="price-col"><div class="price">${GE.fmtGp(price)}</div></div>
-                </a>`;
+                    </a>
+                    ${GE.wikiLink(m, 'w', 'wiki-card-badge')}
+                </div>`;
             }
             h += '</div>';
             document.getElementById('recentResults').innerHTML = h;
