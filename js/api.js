@@ -197,7 +197,7 @@ const GE = {
             ['calculators.html', 'Calculators']
         ];
         return `<nav class="nav"><div class="nav-inner">
-            <a href="index.html" class="nav-logo"><span class="logo-icon">⚔️</span><span>GE Scanner</span></a>
+            <a href="index.html" class="nav-logo"><span class="logo-icon">⚔️</span><span>OSRS Hub</span></a>
             <div class="nav-links">${links.map(([h, t]) =>
                 `<a href="${h}" class="nav-link${t === active ? ' active' : ''}">${t}</a>`
             ).join('')}</div>

@@ -3,14 +3,14 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>GE Scanner — Item Detail</title>
+    <title>OSRS Hub — Item Detail</title>
     <link rel="preconnect" href="https://prices.runescape.wiki">
     <link rel="preconnect" href="https://oldschool.runescape.wiki">
     <link rel="preconnect" href="https://cdn.jsdelivr.net">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link rel="preload" href="js/api.js" as="script">
-    <link rel="preload" href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" as="style">
+    <link rel="preload" href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,300..700&display=swap" as="style">
     <link rel="stylesheet" href="css/style.css">
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns"></script>
@@ -98,7 +98,7 @@
         .refresh-stamp {
             font-size: 0.68rem;
             color: var(--text-muted);
-            font-family: 'Inter', monospace;
+            font-family: 'DM Sans', sans-serif;
             white-space: nowrap;
         }
     </style>
@@ -302,7 +302,7 @@
                     localStorage.setItem('ge_recent', JSON.stringify(recent.slice(0, 20)));
                 } catch(e) {}
 
-                document.title = `${meta.name} — GE Scanner`;
+                document.title = `${meta.name} — OSRS Hub`;
 
                 document.getElementById('heroSection').innerHTML = `
                     <div class="item-hero">
@@ -490,7 +490,7 @@
                     interaction: { mode: 'index', intersect: false },
                     plugins: {
                         legend: {
-                            labels: { color: '#737373', font: { family: 'Inter', size: 12 }, boxWidth: 12, padding: 16,
+                            labels: { color: '#737373', font: { family: 'DM Sans', size: 12 }, boxWidth: 12, padding: 16,
                                 usePointStyle: true, pointStyle: 'circle'
                             }
                         },
@@ -502,8 +502,8 @@
                             borderWidth: 1,
                             padding: 14,
                             cornerRadius: 4,
-                            titleFont: { family: 'Inter', weight: '600', size: 13 },
-                            bodyFont: { family: 'Inter', size: 12 },
+                            titleFont: { family: 'DM Sans', weight: '600', size: 13 },
+                            bodyFont: { family: 'DM Sans', size: 12 },
                             displayColors: true,
                             boxWidth: 8,
                             boxHeight: 8,
@@ -524,13 +524,13 @@
                         x: {
                             type: 'time',
                             grid: { color: 'rgba(255,255,255,0.04)', lineWidth: 0.5 },
-                            ticks: { color: '#404040', font: { family: 'Inter', size: 11 }, maxTicksLimit: 8 }
+                            ticks: { color: '#404040', font: { family: 'DM Sans', size: 11 }, maxTicksLimit: 8 }
                         },
                         y: {
                             grid: { color: 'rgba(255,255,255,0.04)', lineWidth: 0.5 },
                             ticks: {
                                 color: '#4a5568',
-                                font: { family: 'Inter', size: 11 },
+                                font: { family: 'DM Sans', size: 11 },
                                 callback: v => GE.fmtGp(v)
                             }
                         }
@@ -573,7 +573,7 @@
                     interaction: { mode: 'index', intersect: false },
                     plugins: {
                         legend: {
-                            labels: { color: '#737373', font: { family: 'Inter', size: 12 }, boxWidth: 12, padding: 16 }
+                            labels: { color: '#737373', font: { family: 'DM Sans', size: 12 }, boxWidth: 12, padding: 16 }
                         },
                         tooltip: {
                             backgroundColor: 'rgba(0,0,0,0.95)',
@@ -582,8 +582,8 @@
                             borderColor: 'rgba(255,255,255,0.08)',
                             borderWidth: 1,
                             padding: 12,
-                            titleFont: { family: 'Inter' },
-                            bodyFont: { family: 'Inter' },
+                            titleFont: { family: 'DM Sans' },
+                            bodyFont: { family: 'DM Sans' },
                             callbacks: {
                                 label: ctx => ctx.dataset.label + ': ' + ctx.parsed.y.toLocaleString(),
                                 afterBody: (items) => {
@@ -601,14 +601,14 @@
                             type: 'time',
                             stacked: true,
                             grid: { display: false },
-                            ticks: { color: '#404040', font: { family: 'Inter', size: 11 }, maxTicksLimit: 8 }
+                            ticks: { color: '#404040', font: { family: 'DM Sans', size: 11 }, maxTicksLimit: 8 }
                         },
                         y: {
                             stacked: true,
                             grid: { color: 'rgba(255,255,255,0.03)' },
                             ticks: {
                                 color: '#4a5568',
-                                font: { family: 'Inter', size: 11 },
+                                font: { family: 'DM Sans', size: 11 },
                                 callback: v => GE.fmtGp(v)
                             }
                         }
