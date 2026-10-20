@@ -1,0 +1,373 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GE Scanner — Hiscores</title>
+    <link rel="preconnect" href="https://api.wiseoldman.net">
+    <link rel="preconnect" href="https://prices.runescape.wiki">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link rel="preload" href="js/api.js" as="script">
+    <link rel="stylesheet" href="css/style.css">
+    <style>
+        .hs-search { display: flex; gap: 10px; max-width: 560px; margin-bottom: 12px; }
+        .hs-search input {
+            flex: 1; min-width: 0; padding: 12px 16px; font-size: 0.95rem;
+            background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.08);
+            border-radius: var(--radius-sm); color: var(--text-primary); font-family: inherit; outline: none;
+        }
+        .hs-search input:focus { border-color: rgba(255,255,255,0.2); }
+        .hs-recent { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 24px; min-height: 4px; }
+        .hs-chip {
+            padding: 4px 12px; border-radius: 20px; font-size: 0.75rem; cursor: pointer;
+            border: 1px solid rgba(255,255,255,0.08); background: rgba(255,255,255,0.03);
+            color: var(--text-secondary); font-family: inherit;
+        }
+        .hs-chip:hover { color: var(--text-primary); background: rgba(255,255,255,0.07); }
+
+        .hs-hero { display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap; margin-bottom: 16px; }
+        .hs-name { font-size: 1.6rem; font-weight: 700; color: #fff; display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+        .hs-sub { font-size: 0.78rem; color: var(--text-secondary); margin-top: 4px; }
+        .hs-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+
+        .hs-toolbar { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 16px; }
+        .hs-toolbar .label { font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.1em; color: var(--text-secondary); font-weight: 600; }
+        .hs-note { font-size: 0.75rem; color: var(--text-muted); }
+
+        .hs-layout { display: grid; grid-template-columns: minmax(0, 3fr) minmax(0, 2fr); gap: 16px; align-items: start; }
+        .hs-side { display: flex; flex-direction: column; gap: 16px; }
+
+        .hs-skills { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+        .hs-skill {
+            display: flex; gap: 10px; align-items: flex-start; padding: 10px 12px;
+            border-radius: var(--radius-sm); border: 1px solid rgba(255,255,255,0.05);
+            background: rgba(255,255,255,0.02); transition: background 0.2s, border-color 0.2s;
+        }
+        .hs-skill:hover { background: rgba(255,255,255,0.05); border-color: rgba(255,255,255,0.12); opacity: 1; }
+        .hs-skill img { flex-shrink: 0; margin-top: 2px; image-rendering: pixelated; filter: drop-shadow(0 0 1px rgba(255,255,255,0.45)); }
+        .hs-skill-body { flex: 1; min-width: 0; }
+        .hs-skill-top { display: flex; justify-content: space-between; align-items: baseline; gap: 6px; }
+        .hs-skill-name { font-size: 0.78rem; color: var(--text-secondary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .hs-skill-lvl { font-size: 1.15rem; font-weight: 700; color: #fff; font-variant-numeric: tabular-nums; }
+        .hs-skill-lvl small { font-size: 0.65rem; color: var(--text-secondary); font-weight: 500; margin-left: 3px; }
+        .hs-bar { height: 3px; background: rgba(255,255,255,0.06); border-radius: 2px; margin: 6px 0 5px; overflow: hidden; }
+        .hs-bar > div { height: 100%; background: rgba(255,255,255,0.55); border-radius: 2px; }
+        .hs-skill.maxed .hs-bar > div { background: #fff; box-shadow: 0 0 8px rgba(255,255,255,0.6); }
+        .hs-skill-meta { display: flex; justify-content: space-between; gap: 6px; font-size: 0.7rem; color: var(--text-muted); font-variant-numeric: tabular-nums; }
+        .hs-skill-meta .positive { font-weight: 600; }
+
+        .hs-table td, .hs-table th { padding: 8px 10px; font-size: 0.8rem; }
+        .hs-table th { cursor: default; }
+        .hs-table .num { text-align: right; font-variant-numeric: tabular-nums; }
+        .hs-empty { color: var(--text-muted); font-size: 0.85rem; padding: 12px 0; }
+        .hs-status { text-align: center; padding: 48px 20px; color: var(--text-secondary); }
+        .hs-status.error { color: var(--red); }
+        .hs-credit { margin-top: 24px; font-size: 0.72rem; color: var(--text-muted); text-align: center; }
+        .hs-credit a { color: var(--text-secondary); text-decoration: underline; }
+
+        @media (max-width: 1200px) {
+            .hs-layout { grid-template-columns: 1fr; }
+        }
+        @media (max-width: 600px) {
+            .hs-search .btn-primary { width: auto; }
+            .hs-name { font-size: 1.25rem; }
+            .hs-skills { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; }
+            .hs-skill { padding: 8px; gap: 8px; }
+            .hs-skill-lvl { font-size: 1rem; }
+        }
+    </style>
+</head>
+<body>
+    <div id="nav"></div>
+    <div class="page">
+        <div class="page-header">
+            <h1 class="page-title">Hiscores</h1>
+            <p class="page-subtitle">Look up any player — skills, boss kills, clues and XP gained over time</p>
+        </div>
+
+        <form class="hs-search" id="hsForm">
+            <input type="text" id="hsInput" placeholder="RuneScape name..." maxlength="12" autocomplete="off" spellcheck="false">
+            <button class="btn btn-primary" type="submit">Look up</button>
+        </form>
+        <div class="hs-recent" id="hsRecent"></div>
+
+        <div id="hsStatus" class="hs-status">Enter a name to look up their stats</div>
+
+        <div id="hsPlayer" style="display:none">
+            <div class="card hs-hero">
+                <div>
+                    <div class="hs-name" id="hsName"></div>
+                    <div class="hs-sub" id="hsSub"></div>
+                </div>
+                <div class="hs-actions">
+                    <button class="btn btn-secondary" id="hsUpdate">Update</button>
+                    <a class="btn btn-secondary" id="hsWom" target="_blank" rel="noopener noreferrer">Wise Old Man ↗</a>
+                </div>
+            </div>
+
+            <div class="stats-row" id="hsStats"></div>
+
+            <div class="hs-toolbar">
+                <span class="label">XP gained</span>
+                <div class="tf-tabs" id="hsPeriod">
+                    <button class="tf-tab" data-period="day">1D</button>
+                    <button class="tf-tab active" data-period="week">7D</button>
+                    <button class="tf-tab" data-period="month">30D</button>
+                    <button class="tf-tab" data-period="year">1Y</button>
+                </div>
+                <span class="hs-note" id="hsGainNote"></span>
+            </div>
+
+            <div class="hs-layout">
+                <div class="card">
+                    <div class="card-header">
+                        <span class="card-title">Skills</span>
+                        <span class="card-badge badge-blue">Click a skill for its calculator</span>
+                    </div>
+                    <div class="hs-skills" id="hsSkills"></div>
+                </div>
+                <div class="hs-side">
+                    <div class="card">
+                        <div class="card-header"><span class="card-title">Bosses</span></div>
+                        <div class="table-wrap" id="hsBosses"></div>
+                    </div>
+                    <div class="card">
+                        <div class="card-header"><span class="card-title">Clues & Activities</span></div>
+                        <div class="table-wrap" id="hsActivities"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="hs-credit">Stats from the official OSRS hiscores via <a href="https://wiseoldman.net" target="_blank" rel="noopener noreferrer">Wise Old Man</a>, which tracks XP history for gains.</div>
+    </div>
+
+    <script src="js/api.js"></script>
+    <script src="js/skills.js"></script>
+    <script>
+    (() => {
+        document.getElementById('nav').innerHTML = GE.navHTML('Hiscores');
+        GE.initAutocomplete();
+
+        const RECENT_KEY = 'ge_hs_recent';
+        const $ = id => document.getElementById(id);
+
+        // Names that don't title-case cleanly from Wise Old Man's metric keys
+        const NAMES = {
+            kreearra: "Kree'arra", kril_tsutsaroth: "K'ril Tsutsaroth", tztok_jad: 'TzTok-Jad', tzkal_zuk: 'TzKal-Zuk',
+            vetion: "Vet'ion", calvarion: "Calvar'ion", phosanis_nightmare: "Phosani's Nightmare",
+            chambers_of_xeric_challenge_mode: 'Chambers of Xeric (CM)', theatre_of_blood_hard_mode: 'Theatre of Blood (HM)',
+            tombs_of_amascut_expert: 'Tombs of Amascut (Expert)', thermonuclear_smoke_devil: 'Thermy Smoke Devil',
+            clue_scrolls_all: 'Clues (all)', clue_scrolls_beginner: 'Clues (beginner)', clue_scrolls_easy: 'Clues (easy)',
+            clue_scrolls_medium: 'Clues (medium)', clue_scrolls_hard: 'Clues (hard)', clue_scrolls_elite: 'Clues (elite)',
+            clue_scrolls_master: 'Clues (master)', last_man_standing: 'Last Man Standing', pvp_arena: 'PvP Arena',
+            soul_wars_zeal: 'Soul Wars Zeal', guardians_of_the_rift: 'Guardians of the Rift', colosseum_glory: 'Colosseum Glory',
+            collections_logged: 'Collection Log', bounty_hunter_hunter: 'Bounty Hunter (hunter)', bounty_hunter_rogue: 'Bounty Hunter (rogue)'
+        };
+        const TYPES = { ironman: 'Ironman', hardcore: 'Hardcore Ironman', ultimate: 'Ultimate Ironman' };
+        const BUILDS = { f2p: 'F2P', f2p_lvl3: 'F2P Level 3', lvl3: 'Level 3', zerker: 'Zerker', def1: '1 Defence', hp10: '10 HP' };
+
+        const name = k => NAMES[k] || OSRS.metricName(k);
+        const esc = s => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+        const fmtGain = n => n > 0 ? `<span class="positive">+${GE.fmtGp(n)}</span>` : '';
+        const fmtRank = r => r > 0 ? r.toLocaleString() : '—';
+
+        let player = null, gains = null, period = 'week', lookupId = 0;
+
+        // --- Recent searches ---
+        function loadRecent() {
+            try { return JSON.parse(localStorage.getItem(RECENT_KEY)) || []; } catch (e) { return []; }
+        }
+        function saveRecent(display) {
+            const list = [display, ...loadRecent().filter(n => n.toLowerCase() !== display.toLowerCase())].slice(0, 8);
+            try { localStorage.setItem(RECENT_KEY, JSON.stringify(list)); } catch (e) { /* ignore */ }
+            renderRecent();
+        }
+        function renderRecent() {
+            $('hsRecent').innerHTML = loadRecent()
+                .map(n => `<button class="hs-chip" type="button" data-rsn="${esc(n)}">${esc(n)}</button>`).join('');
+            $('hsRecent').querySelectorAll('.hs-chip').forEach(b => b.onclick = () => lookup(b.dataset.rsn));
+        }
+
+        // --- Rendering ---
+        function status(msg, isError) {
+            $('hsStatus').className = 'hs-status' + (isError ? ' error' : '');
+            $('hsStatus').innerHTML = msg;
+            $('hsStatus').style.display = msg ? '' : 'none';
+        }
+
+        function renderHeader() {
+            const tags = [];
+            if (TYPES[player.type]) tags.push(`<span class="tag">${TYPES[player.type]}</span>`);
+            if (BUILDS[player.build]) tags.push(`<span class="tag">${BUILDS[player.build]}</span>`);
+            if (player.status && player.status !== 'active') tags.push(`<span class="tag" style="color:var(--red)">${esc(player.status)}</span>`);
+            $('hsName').innerHTML = esc(player.displayName) + tags.join('');
+
+            const sub = [`Updated ${OSRS.timeAgo(player.updatedAt)}`];
+            if (player.lastChangedAt) sub.push(`last gained XP ${OSRS.timeAgo(player.lastChangedAt)}`);
+            $('hsSub').textContent = sub.join(' · ');
+            $('hsWom').href = OSRS.WOM_SITE + encodeURIComponent(player.username);
+
+            const s = player.latestSnapshot.data;
+            const overall = s.skills.overall;
+            const g = gains && gains.data;
+            const gainSub = (n, unit) => n > 0 ? `<div class="stat-sub positive">+${unit === 'h' ? n.toFixed(1) + 'h' : GE.fmtGp(n)} this period</div>` : '<div class="stat-sub">&nbsp;</div>';
+            const card = (label, value, sub) => `<div class="stat-card"><div class="stat-label">${label}</div><div class="stat-value">${value}</div>${sub}</div>`;
+            $('hsStats').innerHTML = [
+                card('Total Level', overall.level.toLocaleString(), `<div class="stat-sub">Rank ${fmtRank(overall.rank)}</div>`),
+                card('Total XP', GE.fmtGp(Math.max(0, overall.experience)), gainSub(g ? g.skills.overall.experience.gained : 0)),
+                card('Combat', player.combatLevel, '<div class="stat-sub">&nbsp;</div>'),
+                card('EHP', Math.round(player.ehp).toLocaleString(), gainSub(g ? g.computed.ehp.value.gained : 0, 'h')),
+                card('EHB', Math.round(player.ehb).toLocaleString(), gainSub(g ? g.computed.ehb.value.gained : 0, 'h'))
+            ].join('');
+        }
+
+        function renderSkills() {
+            const s = player.latestSnapshot.data.skills;
+            const g = gains && gains.data.skills;
+            $('hsSkills').innerHTML = OSRS.TAB_ORDER.map(key => {
+                const sk = s[key] || { experience: -1, rank: -1 };
+                const ranked = sk.experience >= 0;
+                const xp = ranked ? sk.experience : (key === 'hitpoints' ? OSRS.xpForLevel(10) : 0);
+                const level = OSRS.levelForXp(xp, 99);
+                const virtual = OSRS.levelForXp(xp);
+                const progress = xp >= OSRS.MAX_XP ? 1 : OSRS.levelProgress(xp);
+                const toNext = virtual < OSRS.MAX_LEVEL ? OSRS.xpForLevel(virtual + 1) - xp : 0;
+                const gained = g && g[key] ? g[key].experience.gained : 0;
+                const title = `${OSRS.skillName(key)} — ${ranked ? xp.toLocaleString() + ' XP, rank ' + fmtRank(sk.rank) : 'unranked'}`
+                    + (toNext ? ` · ${toNext.toLocaleString()} XP to level ${virtual + 1}` : '') + ' · open calculator';
+                return `<a class="hs-skill${xp >= OSRS.MAX_XP ? ' maxed' : ''}" title="${title}"
+                        href="calculators.html?skill=${key}&rsn=${encodeURIComponent(player.displayName)}">
+                    <img src="${OSRS.iconUrl(key)}" width="22" height="22" alt="">
+                    <div class="hs-skill-body">
+                        <div class="hs-skill-top">
+                            <span class="hs-skill-name">${OSRS.skillName(key)}</span>
+                            <span class="hs-skill-lvl">${level}${virtual > 99 ? `<small>(${virtual})</small>` : ''}</span>
+                        </div>
+                        <div class="hs-bar"><div style="width:${(progress * 100).toFixed(1)}%"></div></div>
+                        <div class="hs-skill-meta"><span>${ranked ? GE.fmtGp(xp) + ' xp' : 'unranked'}</span>${fmtGain(gained)}</div>
+                    </div>
+                </a>`;
+            }).join('');
+        }
+
+        function renderTable(el, data, gainData, field, emptyMsg) {
+            const rows = Object.entries(data)
+                .filter(([, v]) => v[field] > 0)
+                .sort((a, b) => b[1][field] - a[1][field]);
+            if (!rows.length) { $(el).innerHTML = `<div class="hs-empty">${emptyMsg}</div>`; return; }
+            $(el).innerHTML = `<table class="hs-table"><thead><tr>
+                    <th>Name</th><th class="num">${field === 'kills' ? 'KC' : 'Score'}</th><th class="num">Rank</th><th class="num">Gained</th>
+                </tr></thead><tbody>${rows.map(([k, v]) => {
+                    const gained = gainData && gainData[k] ? gainData[k][field].gained : 0;
+                    return `<tr><td>${name(k)}</td><td class="num">${v[field].toLocaleString()}</td>
+                        <td class="num" style="color:var(--text-secondary)">${fmtRank(v.rank)}</td>
+                        <td class="num">${fmtGain(gained) || '<span style="color:var(--text-muted)">—</span>'}</td></tr>`;
+                }).join('')}</tbody></table>`;
+        }
+
+        function render() {
+            renderHeader();
+            renderSkills();
+            const d = player.latestSnapshot.data;
+            const g = gains && gains.data;
+            renderTable('hsBosses', d.bosses, g && g.bosses, 'kills', 'No ranked boss kills');
+            renderTable('hsActivities', d.activities, g && g.activities, 'score', 'No ranked clues or activities');
+
+            // Gains run from Wise Old Man's earliest snapshot inside the period, which can be much
+            // later than the period start for players nobody updates regularly
+            if (gains) {
+                const coveredDays = (Date.now() - new Date(gains.startsAt).getTime()) / 86400000;
+                const periodDays = { day: 1, week: 7, month: 30, year: 365 }[period];
+                $('hsGainNote').textContent = coveredDays < periodDays * 0.9
+                    ? `Only covers the last ${OSRS.timeAgo(gains.startsAt).replace(' ago', '')} — Wise Old Man has no earlier snapshot in this period`
+                    : '';
+            }
+        }
+
+        async function loadGains(id) {
+            try {
+                const g = await OSRS.getGains(player.username, period);
+                if (id !== lookupId) return;
+                gains = g;
+            } catch (e) {
+                if (id !== lookupId) return;
+                gains = null;
+                $('hsGainNote').textContent = 'Couldn\'t load gains: ' + OSRS.errorText(e);
+                return;
+            }
+            render();
+        }
+
+        // --- Lookup flow ---
+        async function lookup(rsn) {
+            rsn = String(rsn || '').trim();
+            if (!rsn) return;
+            $('hsInput').value = rsn;
+            if (!OSRS.validRsn(rsn)) { $('hsPlayer').style.display = 'none'; status(OSRS.errorText({ code: 'INVALID_USERNAME' }), true); return; }
+
+            const id = ++lookupId;
+            history.replaceState(null, '', '?rsn=' + encodeURIComponent(rsn));
+            $('hsPlayer').style.display = 'none';
+            status('<div class="spinner"></div>Looking up ' + esc(rsn) + '...');
+
+            try { player = await OSRS.getPlayer(rsn); }
+            catch (e) {
+                if (id !== lookupId) return;
+                status(esc(OSRS.errorText(e)), true);
+                return;
+            }
+            if (id !== lookupId) return;
+
+            gains = null;
+            saveRecent(player.displayName);
+            status('');
+            $('hsPlayer').style.display = '';
+            render();
+            loadGains(id);
+
+            // Stored stats can be days old for players nobody updates — refresh them in the background
+            if (Date.now() - new Date(player.updatedAt).getTime() > 60 * 60 * 1000) update(true);
+        }
+
+        async function update(background) {
+            if (!player) return;
+            const id = lookupId;
+            const btn = $('hsUpdate');
+            btn.disabled = true;
+            btn.textContent = 'Updating...';
+            try {
+                const fresh = await OSRS.updatePlayer(player.username);
+                if (id !== lookupId) return;
+                player = fresh;
+                OSRS.clearGainsCache(player.username);
+                render();
+                loadGains(id);
+            } catch (e) {
+                if (id === lookupId && !background) $('hsGainNote').textContent = 'Update failed: ' + OSRS.errorText(e);
+            } finally {
+                btn.disabled = false;
+                btn.textContent = 'Update';
+            }
+        }
+
+        $('hsForm').onsubmit = e => { e.preventDefault(); lookup($('hsInput').value); };
+        $('hsUpdate').onclick = () => update(false);
+        document.querySelectorAll('#hsPeriod .tf-tab').forEach(btn => {
+            btn.onclick = () => {
+                document.querySelectorAll('#hsPeriod .tf-tab').forEach(b => b.classList.remove('active'));
+                btn.classList.add('active');
+                period = btn.dataset.period;
+                if (player) { gains = null; render(); loadGains(lookupId); }
+            };
+        });
+
+        renderRecent();
+        const initial = new URLSearchParams(location.search).get('rsn');
+        if (initial) lookup(initial);
+        else $('hsInput').focus();
+    })();
+    </script>
+</body>
+</html>

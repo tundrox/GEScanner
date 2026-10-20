@@ -192,7 +192,9 @@ const GE = {
             ['index.html', 'Dashboard'],
             ['browse.html', 'Browse'],
             ['scanner.html', 'Scanner'],
-            ['tools.html', 'Tools']
+            ['tools.html', 'Tools'],
+            ['hiscores.html', 'Hiscores'],
+            ['calculators.html', 'Calculators']
         ];
         return `<nav class="nav"><div class="nav-inner">
             <a href="index.html" class="nav-logo"><span class="logo-icon">⚔️</span><span>GE Scanner</span></a>
@@ -207,6 +209,10 @@ const GE = {
     },
 
     initAutocomplete() {
+        // On phones the nav links scroll sideways — keep the current page's link in view
+        const activeLink = document.querySelector('.nav-link.active');
+        if (activeLink) activeLink.scrollIntoView({ block: 'nearest', inline: 'center' });
+
         const input = document.getElementById('navSearch');
         const dropdown = document.getElementById('acDropdown');
         if (!input || !dropdown) return;

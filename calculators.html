@@ -1,0 +1,595 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GE Scanner — Calculators</title>
+    <link rel="preconnect" href="https://prices.runescape.wiki">
+    <link rel="preconnect" href="https://api.wiseoldman.net">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link rel="preload" href="js/api.js" as="script">
+    <link rel="stylesheet" href="css/style.css">
+    <script>
+        window.__gePreload = {
+            mapping: fetch('https://prices.runescape.wiki/api/v1/osrs/mapping').then(r => r.json()),
+            latest: fetch('https://prices.runescape.wiki/api/v1/osrs/latest').then(r => r.json())
+        };
+    </script>
+    <style>
+        .calc-skills { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 6px; margin-bottom: 20px; }
+        .calc-skill {
+            display: flex; align-items: center; gap: 8px; padding: 8px 10px; cursor: pointer;
+            border-radius: var(--radius-sm); border: 1px solid rgba(255,255,255,0.05);
+            background: rgba(255,255,255,0.02); color: var(--text-secondary);
+            font-family: inherit; font-size: 0.8rem; text-align: left; transition: all 0.2s;
+        }
+        .calc-skill:hover { background: rgba(255,255,255,0.05); color: var(--text-primary); }
+        .calc-skill.active { background: rgba(255,255,255,0.1); border-color: rgba(255,255,255,0.25); color: #fff; box-shadow: 0 0 14px rgba(255,255,255,0.06); }
+        .calc-skill img { image-rendering: pixelated; flex-shrink: 0; filter: drop-shadow(0 0 1px rgba(255,255,255,0.45)); }
+        .calc-skill .nm { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .calc-skill .lv { font-size: 0.7rem; color: var(--text-muted); font-variant-numeric: tabular-nums; }
+        .calc-skill.active .lv { color: var(--text-secondary); }
+
+        .calc-form { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 16px 20px; }
+        .calc-field { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+        .calc-field > span { font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-secondary); font-weight: 600; }
+        .calc-pair { display: flex; gap: 6px; }
+        .calc-pair input { min-width: 0; }
+        .calc-pair input.lvl { width: 72px; flex-shrink: 0; }
+        .calc-pair input.xp { flex: 1; width: auto; }
+        .calc-field input[type="text"], .calc-field select { width: 100%; }
+        .calc-quick { display: flex; flex-wrap: wrap; gap: 4px; }
+        .calc-quick button {
+            padding: 3px 9px; border-radius: 12px; font-size: 0.7rem; cursor: pointer; font-family: inherit;
+            border: 1px solid rgba(255,255,255,0.08); background: rgba(255,255,255,0.03); color: var(--text-secondary);
+        }
+        .calc-quick button:hover { color: #fff; background: rgba(255,255,255,0.08); }
+        .calc-rsn-status { font-size: 0.72rem; color: var(--text-muted); min-height: 1em; }
+        .calc-rsn-status.error { color: var(--red); }
+
+        .calc-progress { height: 4px; background: rgba(255,255,255,0.06); border-radius: 2px; margin-top: 10px; overflow: hidden; }
+        .calc-progress > div { height: 100%; background: rgba(255,255,255,0.6); box-shadow: 0 0 8px rgba(255,255,255,0.4); }
+
+        .calc-filters { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin-bottom: 14px; }
+        .calc-filters input[type="text"] { width: 220px; }
+        .calc-note { font-size: 0.72rem; color: var(--text-muted); margin-top: 12px; line-height: 1.6; }
+
+        .calc-table-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+        .calc-table td, .calc-table th { padding: 8px 10px; font-size: 0.8rem; }
+        .calc-table .num { text-align: right; font-variant-numeric: tabular-nums; }
+        .calc-table th.sorted-asc::after { content: ' \25B2'; font-size: 0.6rem; }
+        .calc-table th.sorted-desc::after { content: ' \25BC'; font-size: 0.6rem; }
+        .calc-table tbody tr.row { cursor: pointer; }
+        .calc-table tr.locked td { opacity: 0.4; }
+        .calc-table tr.locked td:first-child { opacity: 0.55; }
+        .calc-table .mats { color: var(--text-secondary); font-size: 0.74rem; max-width: 220px; overflow: hidden; text-overflow: ellipsis; }
+        .calc-table .p2p { font-size: 0.62rem; color: var(--text-muted); border: 1px solid rgba(255,255,255,0.08); border-radius: 4px; padding: 0 4px; margin-left: 6px; }
+        .calc-table .skill-ico { width: 24px; height: 24px; image-rendering: pixelated; opacity: 0.6; filter: drop-shadow(0 0 1px rgba(255,255,255,0.45)); }
+        .calc-table tr.detail td { background: rgba(255,255,255,0.015); white-space: normal; padding: 12px 16px 16px; }
+        /* Pinned to the visible part of a horizontally-scrolled table */
+        .calc-detail { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 16px; font-size: 0.78rem; position: sticky; left: 16px; max-width: min(860px, calc(100vw - 80px)); }
+        .calc-detail h4 { font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-secondary); margin-bottom: 6px; font-weight: 600; }
+        .calc-detail .line { display: flex; justify-content: space-between; gap: 12px; padding: 3px 0; border-bottom: 1px solid rgba(255,255,255,0.03); }
+        .calc-detail .line span:last-child { font-variant-numeric: tabular-nums; text-align: right; }
+        .calc-status { text-align: center; padding: 40px 20px; color: var(--text-secondary); }
+
+        @media (max-width: 1200px) {
+            .calc-table .mats { display: none; }
+        }
+        @media (max-width: 600px) {
+            .calc-skills { grid-template-columns: repeat(6, 1fr); gap: 4px; }
+            .calc-skill { justify-content: center; padding: 8px 0; }
+            .calc-skill .nm, .calc-skill .lv { display: none; }
+            .calc-filters input[type="text"] { width: 100%; }
+            .calc-filters select { flex: 1; }
+        }
+    </style>
+</head>
+<body>
+    <div id="nav"></div>
+    <div class="page">
+        <div class="page-header">
+            <h1 class="page-title">Calculators</h1>
+            <p class="page-subtitle">XP needed, actions to go, and what it costs or earns at live GE prices</p>
+        </div>
+
+        <div class="calc-skills" id="calcSkills"></div>
+
+        <div class="card" style="margin-bottom:16px">
+            <div class="card-header">
+                <span class="card-title" id="calcTitle">Skill Calculator</span>
+                <span class="card-badge badge-green">Live GE prices · 2% tax</span>
+            </div>
+            <div class="calc-form">
+                <label class="calc-field">
+                    <span>RuneScape name</span>
+                    <div class="calc-pair">
+                        <input type="text" id="calcRsn" class="xp" placeholder="Optional — fills current XP" maxlength="12" autocomplete="off" spellcheck="false">
+                        <button class="btn btn-secondary" id="calcLoad" type="button">Load</button>
+                    </div>
+                    <div class="calc-rsn-status" id="calcRsnStatus"></div>
+                </label>
+                <div class="calc-field">
+                    <span>Current level / XP</span>
+                    <div class="calc-pair">
+                        <input type="number" id="curLvl" class="lvl" min="1" max="126" value="1">
+                        <input type="text" id="curXp" class="xp" value="0">
+                    </div>
+                </div>
+                <div class="calc-field">
+                    <span>Target level / XP</span>
+                    <div class="calc-pair">
+                        <input type="number" id="tgtLvl" class="lvl" min="1" max="126" value="2">
+                        <input type="text" id="tgtXp" class="xp" value="83">
+                    </div>
+                    <div class="calc-quick" id="tgtQuick">
+                        <button type="button" data-t="next">Next</button>
+                        <button type="button" data-t="70">70</button>
+                        <button type="button" data-t="80">80</button>
+                        <button type="button" data-t="90">90</button>
+                        <button type="button" data-t="99">99</button>
+                        <button type="button" data-t="200m">200M</button>
+                    </div>
+                </div>
+                <label class="calc-field">
+                    <span>Bonus XP %</span>
+                    <input type="text" id="calcBonus" value="0" placeholder="e.g. 2.5 for a skilling outfit">
+                </label>
+            </div>
+            <div class="calc-progress"><div id="calcProgress" style="width:0"></div></div>
+        </div>
+
+        <div class="stats-row" id="calcStats"></div>
+
+        <div class="card">
+            <div class="calc-filters">
+                <input type="text" id="calcSearch" placeholder="Filter methods..." autocomplete="off">
+                <select id="calcShow">
+                    <option value="all">All methods</option>
+                    <option value="unlocked">Available at current level</option>
+                </select>
+                <select id="calcMembers">
+                    <option value="all">F2P + Members</option>
+                    <option value="f2p">F2P only</option>
+                </select>
+                <select id="calcPrices">
+                    <option value="instant">Instant prices (buy high, sell low)</option>
+                    <option value="patient">Patient offers (buy low, sell high)</option>
+                </select>
+                <select id="calcStyle">
+                    <option value="4">4 XP per damage (one skill)</option>
+                    <option value="2">2 XP per damage (long range / defensive casting)</option>
+                    <option value="1.333">1.33 XP per damage (controlled)</option>
+                </select>
+            </div>
+            <div class="calc-table-wrap" id="calcTable"><div class="calc-status"><div class="spinner"></div>Loading...</div></div>
+            <div class="calc-note" id="calcNote"></div>
+        </div>
+    </div>
+
+    <script src="js/api.js"></script>
+    <script src="js/skills.js"></script>
+    <script>
+    (async () => {
+        document.getElementById('nav').innerHTML = GE.navHTML('Calculators');
+        GE.initAutocomplete();
+
+        const $ = id => document.getElementById(id);
+        const esc = s => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+        const RSN_KEY = 'ge_calc_rsn';
+        const skillData = {};        // skill -> methods, fetched on demand
+        let monsters = null;
+        let player = null;
+
+        const params = new URLSearchParams(location.search);
+        const state = {
+            skill: OSRS.SKILLS.some(([k]) => k === params.get('skill')) ? params.get('skill') : 'fletching',
+            curXp: 0, tgtXp: 83,
+            sort: { col: 'l', dir: 'asc' },
+            expanded: new Set()
+        };
+
+        // ---------- Prices ----------
+        const [mapping, latestData] = await GE.preload();
+        const latest = latestData.data;
+        const byName = {};
+        for (const item of Object.values(mapping)) byName[item.name.toLowerCase()] = item;
+        const itemFor = name => byName[String(name).toLowerCase()] || null;
+
+        function buyPrice(item) {
+            const p = latest[item.id];
+            if (!p) return null;
+            return $('calcPrices').value === 'instant' ? (p.high || p.low) : (p.low || p.high);
+        }
+        function sellPrice(item) {
+            const p = latest[item.id];
+            if (!p) return null;
+            return $('calcPrices').value === 'instant' ? (p.low || p.high) : (p.high || p.low);
+        }
+
+        // ---------- Skill picker ----------
+        function renderSkillPicker() {
+            const snap = player && player.latestSnapshot.data.skills;
+            $('calcSkills').innerHTML = OSRS.TAB_ORDER.map(k => {
+                const lv = snap && snap[k] && snap[k].experience >= 0 ? OSRS.levelForXp(snap[k].experience, 99) : '';
+                return `<button class="calc-skill${k === state.skill ? ' active' : ''}" data-skill="${k}" title="${OSRS.skillName(k)}">
+                    <img src="${OSRS.iconUrl(k)}" width="20" height="20" alt="">
+                    <span class="nm">${OSRS.skillName(k)}</span><span class="lv">${lv}</span>
+                </button>`;
+            }).join('');
+            $('calcSkills').querySelectorAll('.calc-skill').forEach(b => b.onclick = () => selectSkill(b.dataset.skill));
+        }
+
+        // ---------- Level / XP inputs ----------
+        const clampXp = xp => Math.max(0, Math.min(OSRS.MAX_XP, Math.floor(xp) || 0));
+        const minXp = () => state.skill === 'hitpoints' ? OSRS.xpForLevel(10) : 0;
+
+        function syncInputs() {
+            $('curLvl').value = OSRS.levelForXp(state.curXp);
+            $('curXp').value = state.curXp.toLocaleString();
+            $('tgtLvl').value = OSRS.levelForXp(state.tgtXp);
+            $('tgtXp').value = state.tgtXp.toLocaleString();
+        }
+        function setCurrent(xp, keepTarget) {
+            state.curXp = Math.max(minXp(), clampXp(xp));
+            if (!keepTarget && state.tgtXp <= state.curXp) {
+                const lvl = OSRS.levelForXp(state.curXp);
+                state.tgtXp = lvl < OSRS.MAX_LEVEL ? OSRS.xpForLevel(lvl + 1) : OSRS.MAX_XP;
+            }
+            syncInputs();
+            render();
+        }
+        function setTarget(xp) {
+            state.tgtXp = clampXp(xp);
+            syncInputs();
+            render();
+        }
+
+        $('curLvl').onchange = () => setCurrent(OSRS.xpForLevel(+$('curLvl').value || 1));
+        $('curXp').onchange = () => setCurrent(GE.parseGp($('curXp').value));
+        $('tgtLvl').onchange = () => setTarget(OSRS.xpForLevel(+$('tgtLvl').value || 1));
+        $('tgtXp').onchange = () => setTarget(GE.parseGp($('tgtXp').value));
+        $('calcBonus').oninput = () => render();
+        $('tgtQuick').querySelectorAll('button').forEach(b => b.onclick = () => {
+            const t = b.dataset.t;
+            if (t === 'next') { const l = OSRS.levelForXp(state.curXp); setTarget(OSRS.xpForLevel(Math.min(OSRS.MAX_LEVEL, l + 1))); }
+            else if (t === '200m') setTarget(OSRS.MAX_XP);
+            else setTarget(OSRS.xpForLevel(+t));
+        });
+
+        // ---------- Player lookup ----------
+        function playerXp(skill) {
+            const s = player && player.latestSnapshot.data.skills[skill];
+            return s && s.experience >= 0 ? s.experience : minXp();
+        }
+
+        async function loadPlayer(rsn) {
+            rsn = String(rsn || '').trim();
+            const st = $('calcRsnStatus');
+            if (!rsn) { player = null; st.textContent = ''; renderSkillPicker(); return; }
+            if (!OSRS.validRsn(rsn)) { st.className = 'calc-rsn-status error'; st.textContent = OSRS.errorText({ code: 'INVALID_USERNAME' }); return; }
+            st.className = 'calc-rsn-status';
+            st.textContent = 'Loading ' + rsn + '...';
+            try {
+                player = await OSRS.getPlayer(rsn);
+                if (Date.now() - new Date(player.updatedAt).getTime() > 60 * 60 * 1000) {
+                    st.textContent = 'Refreshing ' + player.displayName + ' from the hiscores...';
+                    try { player = await OSRS.updatePlayer(rsn); } catch (e) { /* stored stats are still usable */ }
+                }
+            } catch (e) {
+                player = null;
+                st.className = 'calc-rsn-status error';
+                st.textContent = OSRS.errorText(e);
+                renderSkillPicker();
+                return;
+            }
+            try { localStorage.setItem(RSN_KEY, player.displayName); } catch (e) { /* ignore */ }
+            $('calcRsn').value = player.displayName;
+            st.innerHTML = `${esc(player.displayName)} · updated ${OSRS.timeAgo(player.updatedAt)} · <a href="hiscores.html?rsn=${encodeURIComponent(player.displayName)}">hiscores</a>`;
+            renderSkillPicker();
+            setCurrent(playerXp(state.skill), false);
+            updateUrl();
+        }
+
+        $('calcLoad').onclick = () => loadPlayer($('calcRsn').value);
+        $('calcRsn').onkeydown = e => { if (e.key === 'Enter') { e.preventDefault(); loadPlayer($('calcRsn').value); } };
+
+        function updateUrl() {
+            const q = new URLSearchParams({ skill: state.skill });
+            if (player) q.set('rsn', player.displayName);
+            history.replaceState(null, '', '?' + q);
+        }
+
+        // ---------- Data ----------
+        async function loadSkill(skill) {
+            if (OSRS.MONSTER_SKILLS.includes(skill)) {
+                if (!monsters) monsters = await (await fetch('data/monsters.json')).json();
+                return;
+            }
+            if (!skillData[skill]) skillData[skill] = await (await fetch(`data/skills/${skill}.json`)).json();
+        }
+
+        async function selectSkill(skill) {
+            state.skill = skill;
+            state.expanded.clear();
+            state.sort = OSRS.MONSTER_SKILLS.includes(skill) ? { col: 'c', dir: 'asc' } : { col: 'l', dir: 'asc' };
+            $('calcSearch').value = '';
+            $('calcTitle').textContent = OSRS.skillName(skill) + ' Calculator';
+            $('calcStyle').value = skill === 'hitpoints' ? '1.333' : '4';
+            renderSkillPicker();
+            updateUrl();
+            $('calcTable').innerHTML = '<div class="calc-status"><div class="spinner"></div>Loading methods...</div>';
+            try { await loadSkill(skill); }
+            catch (e) { $('calcTable').innerHTML = '<div class="calc-status">Couldn\'t load calculator data.</div>'; return; }
+            if (state.skill !== skill) return;
+            // A loaded player's XP follows the skill (target resets to its next level);
+            // typed-in numbers carry over between skills
+            if (player) state.tgtXp = 0;
+            setCurrent(player ? playerXp(skill) : state.curXp);
+        }
+
+        // Caveats the per-action numbers can't show
+        const SKILL_NOTES = {
+            prayer: 'The Chaos altar saves each bone 50% of the time, so its real cost is about half what\'s shown.',
+            magic: 'Alchemy rows count rune costs only — for item margins see <a href="tools.html">Tools → Alch Profit</a>.'
+        };
+
+        // ---------- Calculation ----------
+        const bonusMult = () => 1 + (Math.max(0, parseFloat($('calcBonus').value) || 0) / 100);
+
+        // Cost/value of one action. profit is null when any traded item has no GE price.
+        function priceMethod(r) {
+            let cost = 0, value = 0, known = true;
+            const mats = r.m.map(([name, qty]) => {
+                const item = itemFor(name);
+                const price = item ? buyPrice(item) : null;
+                if (qty == null || price == null) known = false;
+                else cost += qty * price;
+                return { name, qty, item, price };
+            });
+            let out = null;
+            if (r.o) {
+                const [name, qty] = r.o;
+                const item = itemFor(name);
+                const price = item ? sellPrice(item) : null;
+                if (item && (price == null || qty == null)) known = false;   // tradeable but unpriced
+                const tax = price != null ? GE.geTax(price) : 0;
+                if (item && price != null && qty != null) value = qty * (price - tax);
+                out = { name, qty, item, price, tax };
+            }
+            const priced = r.m.length > 0 || (out && out.item);
+            return { mats, out, profit: priced && known ? value - cost : null };
+        }
+
+        function methodRows(xpNeeded) {
+            const curLvl = OSRS.levelForXp(state.curXp, 99);
+            const mult = bonusMult();
+            const q = $('calcSearch').value.trim().toLowerCase();
+            const f2p = $('calcMembers').value === 'f2p';
+            const unlockedOnly = $('calcShow').value === 'unlocked';
+            const out = [];
+            for (const r of skillData[state.skill] || []) {
+                if (q && !r.n.toLowerCase().includes(q) && !r.m.some(m => m[0].toLowerCase().includes(q))) continue;
+                if (f2p && r.p) continue;
+                if (unlockedOnly && r.l > curLvl) continue;
+                const xp = r.x * mult;
+                const pr = priceMethod(r);
+                const actions = Math.ceil(xpNeeded / xp);
+                out.push({
+                    r, key: r.n + '|' + r.l + '|' + r.x, n: r.n, l: r.l, x: xp, actions, pr,
+                    each: pr.profit, gpxp: pr.profit == null ? null : pr.profit / xp,
+                    total: pr.profit == null ? null : pr.profit * actions,
+                    locked: r.l > curLvl
+                });
+            }
+            return out;
+        }
+
+        function monsterRows(xpNeeded) {
+            const mult = bonusMult();
+            const slayer = state.skill === 'slayer';
+            const perDmg = parseFloat($('calcStyle').value);
+            const q = $('calcSearch').value.trim().toLowerCase();
+            const unlockedOnly = $('calcShow').value === 'unlocked';
+            const curLvl = OSRS.levelForXp(state.curXp, 99);
+            const out = [];
+            for (const m of monsters || []) {
+                if (q && !m.n.toLowerCase().includes(q)) continue;
+                if (slayer && !m.s) continue;
+                if (slayer && unlockedOnly && m.sl > curLvl) continue;
+                // Combat XP is per damage dealt; some high-defence monsters add a % bonus
+                const xp = (slayer ? m.s : m.h * perDmg * (1 + m.b / 100)) * mult;
+                if (!xp) continue;
+                out.push({
+                    m, key: m.w + '|' + m.c + '|' + m.h, n: m.n, c: m.c, h: m.h, b: m.b, sl: m.sl,
+                    x: xp, actions: Math.ceil(xpNeeded / xp), locked: slayer && m.sl > curLvl
+                });
+            }
+            return out;
+        }
+
+        function sortRows(rows) {
+            const { col, dir } = state.sort;
+            const d = dir === 'asc' ? 1 : -1;
+            return rows.sort((a, b) => {
+                if (col === 'n') return a.n.localeCompare(b.n) * d;
+                const av = a[col], bv = b[col];
+                if (av == null && bv == null) return 0;
+                if (av == null) return 1;            // unpriced rows always sink
+                if (bv == null) return -1;
+                return (av - bv) * d || a.n.localeCompare(b.n);
+            });
+        }
+
+        // ---------- Rendering ----------
+        const signed = (n, digits) => {
+            if (n == null) return '<span style="color:var(--text-muted)" title="Some items have no GE price">—</span>';
+            const cls = n > 0 ? 'positive' : n < 0 ? 'negative' : 'neutral';
+            const a = Math.abs(n);
+            const v = digits != null && a < 1000 ? a.toFixed(digits) : GE.fmtGp(Math.round(a));
+            return `<span class="${cls}">${n > 0 ? '+' : n < 0 ? '−' : ''}${v}</span>`;
+        };
+        const fmtXp = n => n % 1 === 0 ? n.toLocaleString() : n.toLocaleString(undefined, { maximumFractionDigits: 1 });
+
+        function rowIcon(row) {
+            const pr = row.pr;
+            const item = (pr.out && pr.out.item) || (pr.mats[0] && pr.mats[0].item) || itemFor(row.r.w);
+            return item ? GE.imgTag(item, 24) : `<img src="${OSRS.iconUrl(state.skill)}" class="skill-ico" alt="">`;
+        }
+
+        function detailHTML(row) {
+            const { mats, out } = row.pr;
+            const n = row.actions;
+            const line = (label, value) => `<div class="line"><span>${label}</span><span>${value}</span></div>`;
+            let h = '<div class="calc-detail">';
+            if (mats.length) {
+                h += '<div><h4>Materials for ' + n.toLocaleString() + ' actions</h4>';
+                for (const m of mats) {
+                    const total = m.qty != null ? m.qty * n : null;
+                    const label = `${total != null ? Math.ceil(total).toLocaleString() + ' × ' : ''}${esc(m.name)}`;
+                    h += line(m.item ? `<a href="item.html?id=${m.item.id}">${label}</a>` : label,
+                        m.price != null && total != null ? `${GE.fmtGp(m.price)} ea · ${GE.fmtGp(Math.round(m.price * total))}` : '<span style="color:var(--text-muted)">not on GE</span>');
+                }
+                h += '</div>';
+            }
+            if (out) {
+                const total = out.qty != null ? out.qty * n : null;
+                const label = `${total != null ? Math.ceil(total).toLocaleString() + ' × ' : ''}${esc(out.name)}`;
+                h += '<div><h4>You make</h4>';
+                h += line(out.item ? `<a href="item.html?id=${out.item.id}">${label}</a>` : label,
+                    out.item && out.price != null && total != null
+                        ? `${GE.fmtGp(out.price)} ea · ${GE.fmtGp(Math.round(out.price * total))}`
+                        : '<span style="color:var(--text-muted)">not on GE</span>');
+                if (out.item && out.tax && total != null) h += line('GE tax (2%)', `<span class="negative">−${GE.fmtGp(Math.round(out.tax * total))}</span>`);
+                h += '</div>';
+            }
+            h += `<div><h4>Summary</h4>
+                ${line('XP per action', fmtXp(row.x))}
+                ${line('Actions needed', n.toLocaleString())}
+                ${line('Profit per action', signed(row.each))}
+                ${line('Total', signed(row.total))}
+                ${line('Wiki', `<a href="${GE.wikiUrl(row.r.w)}" target="_blank" rel="noopener noreferrer">${esc(row.r.w)} ↗</a>`)}
+            </div></div>`;
+            return h;
+        }
+
+        function tableHTML(cols, rows, cellsFor, detailFor) {
+            let h = '<table class="calc-table"><thead><tr>';
+            for (const [k, label, num] of cols) {
+                const cls = (num ? 'num ' : k === 'm' ? 'mats ' : '') + (state.sort.col === k ? 'sorted-' + state.sort.dir : '');
+                h += k === 'm' ? `<th class="${cls}" style="cursor:default">${label}</th>` : `<th data-col="${k}" class="${cls}">${label}</th>`;
+            }
+            h += '</tr></thead><tbody>';
+            for (const row of rows) {
+                h += `<tr class="row${row.locked ? ' locked' : ''}" data-key="${esc(row.key)}">${cellsFor(row)}</tr>`;
+                if (detailFor && state.expanded.has(row.key)) h += `<tr class="detail"><td colspan="${cols.length}">${detailFor(row)}</td></tr>`;
+            }
+            return h + '</tbody></table>';
+        }
+
+        function bindTable(numericDefaultDesc) {
+            $('calcTable').querySelectorAll('th[data-col]').forEach(th => th.onclick = () => {
+                const col = th.dataset.col;
+                if (state.sort.col === col) state.sort.dir = state.sort.dir === 'asc' ? 'desc' : 'asc';
+                else state.sort = { col, dir: numericDefaultDesc.includes(col) ? 'desc' : 'asc' };
+                render();
+            });
+            $('calcTable').querySelectorAll('tr.row').forEach(tr => tr.onclick = e => {
+                if (e.target.closest('a')) return;
+                const k = tr.dataset.key;
+                if (!skillData[state.skill]) return;          // monster rows have no detail view
+                state.expanded.has(k) ? state.expanded.delete(k) : state.expanded.add(k);
+                render();
+            });
+        }
+
+        function renderStats(xpNeeded) {
+            const cur = OSRS.levelForXp(state.curXp), tgt = OSRS.levelForXp(state.tgtXp);
+            const card = (label, value, sub) => `<div class="stat-card"><div class="stat-label">${label}</div><div class="stat-value">${value}</div><div class="stat-sub">${sub}</div></div>`;
+            const span = state.tgtXp - OSRS.xpForLevel(Math.min(cur, 99));
+            const pct = state.tgtXp > state.curXp ? Math.min(100, 100 * (state.curXp - OSRS.xpForLevel(Math.min(cur, 99))) / Math.max(1, span)) : 100;
+            $('calcStats').innerHTML = [
+                card('Current', cur, state.curXp.toLocaleString() + ' xp'),
+                card('Target', tgt, state.tgtXp.toLocaleString() + ' xp'),
+                card('XP Remaining', GE.fmtGp(xpNeeded), xpNeeded.toLocaleString() + ' xp'),
+                card('Total Progress', (state.curXp / OSRS.MAX_XP * 100).toFixed(2) + '%', 'of 200M xp')
+            ].join('');
+            $('calcProgress').style.width = pct.toFixed(1) + '%';
+        }
+
+        function render() {
+            const xpNeeded = Math.max(0, state.tgtXp - state.curXp);
+            renderStats(xpNeeded);
+            const isMonster = OSRS.MONSTER_SKILLS.includes(state.skill);
+            const isCombat = isMonster && state.skill !== 'slayer';
+            $('calcStyle').style.display = isCombat && state.skill !== 'hitpoints' ? '' : 'none';
+            $('calcMembers').style.display = isMonster ? 'none' : '';
+            $('calcPrices').style.display = isMonster ? 'none' : '';
+            $('calcShow').style.display = isCombat ? 'none' : '';
+
+            if (xpNeeded <= 0) {
+                $('calcTable').innerHTML = '<div class="calc-status">Target is already reached — set a higher target level or XP.</div>';
+                $('calcNote').textContent = '';
+                return;
+            }
+
+            if (isMonster) {
+                if (!monsters) return;
+                const all = sortRows(monsterRows(xpNeeded));
+                const rows = all.slice(0, 300);
+                const slayer = state.skill === 'slayer';
+                const cols = [['n', 'Monster'], ['c', 'Combat', 1], ['h', 'HP', 1]]
+                    .concat(slayer ? [['sl', 'Slayer Lvl', 1]] : [['b', 'XP Bonus', 1]])
+                    .concat([['x', slayer ? 'Slayer XP' : 'XP / Kill', 1], ['actions', 'Kills Needed', 1]]);
+                $('calcTable').innerHTML = rows.length ? tableHTML(cols, rows, row => `
+                    <td><div class="item-cell"><img src="${OSRS.iconUrl(state.skill)}" class="skill-ico" alt="">
+                        <span class="item-name">${esc(row.n)}</span>${row.m.w !== row.n ? `<span class="p2p">${esc(row.m.w.replace(row.n, '').replace(/^\s*\(|\)\s*$/g, '') || 'variant')}</span>` : ''}${GE.wikiLink(row.m.w)}</div></td>
+                    <td class="num">${row.c || '—'}</td>
+                    <td class="num">${row.h.toLocaleString()}</td>
+                    ${slayer ? `<td class="num">${row.sl || 1}</td>` : `<td class="num">${row.b ? '+' + row.b + '%' : '—'}</td>`}
+                    <td class="num">${fmtXp(Math.round(row.x * 10) / 10)}</td>
+                    <td class="num"><strong>${row.actions.toLocaleString()}</strong></td>`) : '<div class="calc-status">No monsters match</div>';
+                bindTable(['c', 'h', 'b', 'x', 'sl']);
+                $('calcNote').innerHTML = (all.length > rows.length ? `Showing ${rows.length} of ${all.length} monsters — use the filter to find others. ` : '')
+                    + (slayer
+                        ? 'Slayer XP is only earned on-task.'
+                        : state.skill === 'hitpoints'
+                            ? 'Hitpoints gets 1.33 XP per damage alongside your combat style.'
+                            : 'Assumes every hit point of damage is dealt by you. XP bonus is the monster\'s own multiplier from the wiki.');
+                return;
+            }
+
+            const all = sortRows(methodRows(xpNeeded));
+            const cols = [['n', 'Method'], ['l', 'Level', 1], ['x', 'XP', 1], ['actions', 'Actions', 1], ['m', 'Materials (each)'],
+                ['each', 'GP / Action', 1], ['gpxp', 'GP / XP', 1], ['total', 'Total GP', 1]];
+            $('calcTable').innerHTML = all.length ? tableHTML(cols, all, row => `
+                <td><div class="item-cell">${rowIcon(row)}<span class="item-name">${esc(row.n)}</span>${row.r.p ? '<span class="p2p">P2P</span>' : ''}</div></td>
+                <td class="num">${row.l}</td>
+                <td class="num">${fmtXp(Math.round(row.x * 10) / 10)}</td>
+                <td class="num"><strong>${row.actions.toLocaleString()}</strong></td>
+                <td class="mats" title="${esc(row.r.m.map(m => (m[1] ?? '?') + '× ' + m[0]).join(', '))}">${row.r.m.map(m => (m[1] ?? '?') + '× ' + esc(m[0])).join(', ') || '<span style="color:var(--text-muted)">—</span>'}</td>
+                <td class="num">${signed(row.each)}</td>
+                <td class="num">${signed(row.gpxp, 2)}</td>
+                <td class="num">${signed(row.total)}</td>`, detailHTML) : '<div class="calc-status">No methods match your filters</div>';
+            bindTable(['l', 'x', 'actions', 'each', 'gpxp', 'total']);
+            $('calcNote').innerHTML = `${all.length} methods · Click a row for total materials and costs. `
+                + 'GP is per action at live GE prices, with the 2% tax taken off anything you sell. '
+                + 'Locked methods (above your current level) are dimmed. Method data from the OSRS Wiki.'
+                + (SKILL_NOTES[state.skill] ? '<br>' + SKILL_NOTES[state.skill] : '');
+        }
+
+        ['calcSearch', 'calcShow', 'calcMembers', 'calcPrices', 'calcStyle'].forEach(id => {
+            $(id).addEventListener(id === 'calcSearch' ? 'input' : 'change', () => render());
+        });
+
+        // ---------- Boot ----------
+        renderSkillPicker();
+        const rsn = params.get('rsn') || (() => { try { return localStorage.getItem(RSN_KEY); } catch (e) { return null; } })();
+        if (rsn) $('calcRsn').value = rsn;
+        await selectSkill(state.skill);
+        if (rsn) loadPlayer(rsn);
+    })();
+    </script>
+</body>
+</html>
