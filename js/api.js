@@ -163,6 +163,7 @@ const GE = {
 
     fmtGp(n) {
         if (n == null) return '—';
+        if (n < 0) return '-' + this.fmtGp(-n);   // losses abbreviate the same way as gains
         if (n >= 1e9) { const v = n / 1e9; return (v % 1 === 0 ? v.toFixed(0) : v.toFixed(1)) + 'B'; }
         if (n >= 1e6) { const v = n / 1e6; return (v % 1 === 0 ? v.toFixed(0) : v.toFixed(1)) + 'M'; }
         if (n >= 1e3) { const v = n / 1e3; return (v % 1 === 0 ? v.toFixed(0) : v.toFixed(1)) + 'K'; }

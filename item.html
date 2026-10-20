@@ -3,6 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22%3E%3Ctext y=%22.9em%22 font-size=%2290%22%3E%E2%9A%94%EF%B8%8F%3C/text%3E%3C/svg%3E">
     <title>OSRS Hub — Item Detail</title>
     <link rel="preconnect" href="https://prices.runescape.wiki">
     <link rel="preconnect" href="https://oldschool.runescape.wiki">
@@ -48,8 +49,13 @@
         .item-side td { white-space: normal; }
         .item-side td:first-child { white-space: nowrap; vertical-align: top; }
         @media (max-width: 1100px) {
-            .item-layout { grid-template-columns: 1fr; }
+            /* minmax(0, …) so the chart's controls can't push the column wider than the screen */
+            .item-layout { grid-template-columns: minmax(0, 1fr); }
             .item-side { position: static; }
+        }
+        @media (max-width: 700px) {
+            #chartCard .card-header { flex-wrap: wrap; gap: 10px; }
+            .chart-controls { flex-wrap: wrap; width: 100%; gap: 10px; }
         }
 
         /* Refresh controls */
