@@ -55,7 +55,7 @@
         .calc-filters input[type="text"] { width: 220px; }
         .calc-note { font-size: 0.72rem; color: var(--text-muted); margin-top: 12px; line-height: 1.6; }
 
-        .calc-table-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+        .calc-table-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; container-type: inline-size; }
         .calc-table td, .calc-table th { padding: 8px 10px; font-size: 0.8rem; }
         .calc-table .num { text-align: right; font-variant-numeric: tabular-nums; }
         .calc-table th.sorted-asc::after { content: ' \25B2'; font-size: 0.6rem; }
@@ -68,7 +68,7 @@
         .calc-table .skill-ico { width: 24px; height: 24px; image-rendering: pixelated; opacity: 0.6; filter: drop-shadow(0 0 1px rgba(255,255,255,0.45)); }
         .calc-table tr.detail td { background: rgba(255,255,255,0.015); white-space: normal; padding: 12px 16px 16px; }
         /* Pinned to the visible part of a horizontally-scrolled table */
-        .calc-detail { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 16px; font-size: 0.78rem; position: sticky; left: 16px; max-width: min(860px, calc(100vw - 80px)); }
+        .calc-detail { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 16px; font-size: 0.78rem; position: sticky; left: 16px; max-width: min(860px, calc(100cqw - 32px)); }
         .calc-detail h4 { font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-secondary); margin-bottom: 6px; font-weight: 600; }
         .calc-detail .line { display: flex; justify-content: space-between; gap: 12px; padding: 3px 0; border-bottom: 1px solid rgba(255,255,255,0.03); }
         .calc-detail .line span:last-child { font-variant-numeric: tabular-nums; text-align: right; }
@@ -145,6 +145,14 @@
         <div class="card">
             <div class="calc-filters">
                 <input type="text" id="calcSearch" placeholder="Filter methods..." autocomplete="off">
+                <select id="calcCat"><option value="">All categories</option></select>
+                <select id="calcCompost" title="Compost adds harvest lives and its own XP">
+                    <option value="None">No compost</option>
+                    <option value="Compost">Compost</option>
+                    <option value="Supercompost">Supercompost</option>
+                    <option value="Ultracompost">Ultracompost</option>
+                </select>
+                <label class="checkbox-label" id="calcSecateursWrap"><input type="checkbox" id="calcSecateurs"> Magic secateurs</label>
                 <select id="calcShow">
                     <option value="all">All methods</option>
                     <option value="unlocked">Available at current level</option>
@@ -178,9 +186,8 @@
         const $ = id => document.getElementById(id);
         const esc = s => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
         const RSN_KEY = 'ge_calc_rsn';
-        const skillData = {};        // skill -> methods, fetched on demand
-        let monsters = null;
         let player = null;
+        let loadError = null;
 
         const params = new URLSearchParams(location.search);
         const state = {
@@ -302,12 +309,34 @@
         }
 
         // ---------- Data ----------
+        // Data files are scripts that fill window.OSRS_DATA. Script tags (unlike fetch) also work
+        // when the site is opened straight from disk, which is how the desktop shortcut runs it.
+        const DATA = () => window.OSRS_DATA || {};
+        const loading = {};
+        function loadScript(src) {
+            return loading[src] = loading[src] || new Promise((resolve, reject) => {
+                const el = document.createElement('script');
+                el.src = src;
+                el.onload = resolve;
+                el.onerror = () => { delete loading[src]; el.remove(); reject(new Error('Couldn\'t load ' + src)); };
+                document.head.appendChild(el);
+            });
+        }
+        const isMonsterSkill = skill => OSRS.MONSTER_SKILLS.includes(skill);
+        const skillRows = () => DATA()[state.skill];
+        const monsters = () => DATA().monsters;
+
         async function loadSkill(skill) {
-            if (OSRS.MONSTER_SKILLS.includes(skill)) {
-                if (!monsters) monsters = await (await fetch('data/monsters.json')).json();
-                return;
-            }
-            if (!skillData[skill]) skillData[skill] = await (await fetch(`data/skills/${skill}.json`)).json();
+            if (isMonsterSkill(skill)) { if (!monsters()) await loadScript('data/monsters.js'); }
+            else if (!DATA()[skill]) await loadScript(`data/skills/${skill}.js`);
+        }
+
+        function renderCategories() {
+            const rows = isMonsterSkill(state.skill) ? [] : skillRows() || [];
+            const cats = [...new Set(rows.flatMap(r => r.c.split(', ')))]
+                .sort((a, b) => (a === 'Other') - (b === 'Other') || a.localeCompare(b));
+            $('calcCat').innerHTML = '<option value="">All categories</option>'
+                + cats.map(c => `<option value="${esc(c)}">${esc(c)}</option>`).join('');
         }
 
         async function selectSkill(skill) {
@@ -320,9 +349,11 @@
             renderSkillPicker();
             updateUrl();
             $('calcTable').innerHTML = '<div class="calc-status"><div class="spinner"></div>Loading methods...</div>';
+            loadError = null;
             try { await loadSkill(skill); }
-            catch (e) { $('calcTable').innerHTML = '<div class="calc-status">Couldn\'t load calculator data.</div>'; return; }
+            catch (e) { loadError = e; }
             if (state.skill !== skill) return;
+            renderCategories();
             // A loaded player's XP follows the skill (target resets to its next level);
             // typed-in numbers carry over between skills
             if (player) state.tgtXp = 0;
@@ -332,16 +363,58 @@
         // Caveats the per-action numbers can't show
         const SKILL_NOTES = {
             prayer: 'The Chaos altar saves each bone 50% of the time, so its real cost is about half what\'s shown.',
-            magic: 'Alchemy rows count rune costs only — for item margins see <a href="tools.html">Tools → Alch Profit</a>.'
+            magic: 'Alchemy rows count rune costs only — for item margins see <a href="tools.html">Tools → Alch Profit</a>. '
+                + 'Combat spells show XP per cast (splashing); landing hits adds 2 XP per damage.',
+            farming: 'For patch crops an action is one planting: harvests per planting follow the OSRS Wiki\'s yield model '
+                + 'for your current level, compost and secateurs, so XP and produce rise as you level.',
+            construction: 'Mahogany Homes contracts use the wiki\'s average XP and planks per contract; outfit bonus applies only to the furniture part.'
         };
 
         // ---------- Calculation ----------
-        const bonusMult = () => 1 + (Math.max(0, parseFloat($('calcBonus').value) || 0) / 100);
+        const bonusPct = () => Math.max(0, parseFloat($('calcBonus').value) || 0) / 100;
+        const bonusMult = () => 1 + bonusPct();
+        const floor1 = n => Math.floor(n * 10) / 10;      // the game floors XP to 0.1
+
+        // Expected harvests from one planting — the OSRS Wiki calculator's model (Module:Skill calc):
+        // each harvest has a level-based chance to save a "life"; a patch starts with 3 lives + compost.
+        const SECATEURS_TYPES = ['Herb', 'Allotment', 'Hops', 'Special'];
+        const SECATEURS_EXCLUDED = ['Giant seaweed', 'Cactus spine', 'Potato cactus'];
+        function farmingYield(r, level, compost) {
+            const meta = DATA().farming_meta;
+            const lives = 3 + meta.compost[compost][0];
+            const [lo, hi] = r.cts;
+            const chance = Math.floor(lo * (99 - level) / 98 + hi * (level - 1) / 98);
+            const secateurs = $('calcSecateurs').checked && SECATEURS_TYPES.includes(r.c) && !SECATEURS_EXCLUDED.includes(r.w)
+                ? meta.secateurs : 0;
+            const save = (Math.floor(chance * (1 + secateurs)) + 1) / 256;
+            return lives / (1 - save);
+        }
+
+        // XP, materials and output for one action, after bonuses and farming options
+        function actionOf(r) {
+            const bonus = bonusPct();
+            if (state.skill !== 'farming') {
+                // Outfit bonuses only boost part of some rewards (e.g. Mahogany Homes contract XP)
+                return { xp: floor1((r.bx ?? r.x) * bonus) + r.x, mats: r.m, out: r.o };
+            }
+            // Compost only goes on patch crops (the wiki calculator's categories), not the extra
+            // recipe rows like making compost or planting POH garden plants
+            const compost = r.c === 'Other' ? 'None' : $('calcCompost').value;
+            const compostXp = DATA().farming_meta.compost[compost][1];
+            const mats = compost === 'None' ? r.m : r.m.concat([[compost, 1]]);
+            let base = r.x + compostXp, out = r.o;
+            const harvests = r.cts ? farmingYield(r, Math.min(99, OSRS.levelForXp(state.curXp)), compost) : r.ay;
+            if (harvests) {
+                base = floor1(harvests * r.x + (r.px || 0) + (r.hx || 0) + compostXp);
+                if (out) out = [out[0], harvests];
+            }
+            return { xp: floor1(base * bonus) + base, mats, out, harvests };
+        }
 
         // Cost/value of one action. profit is null when any traded item has no GE price.
-        function priceMethod(r) {
+        function priceMethod(a) {
             let cost = 0, value = 0, known = true;
-            const mats = r.m.map(([name, qty]) => {
+            const mats = a.mats.map(([name, qty]) => {
                 const item = itemFor(name);
                 const price = item ? buyPrice(item) : null;
                 if (qty == null || price == null) known = false;
@@ -349,8 +422,8 @@
                 return { name, qty, item, price };
             });
             let out = null;
-            if (r.o) {
-                const [name, qty] = r.o;
+            if (a.out) {
+                const [name, qty] = a.out;
                 const item = itemFor(name);
                 const price = item ? sellPrice(item) : null;
                 if (item && (price == null || qty == null)) known = false;   // tradeable but unpriced
@@ -358,26 +431,28 @@
                 if (item && price != null && qty != null) value = qty * (price - tax);
                 out = { name, qty, item, price, tax };
             }
-            const priced = r.m.length > 0 || (out && out.item);
+            const priced = a.mats.length > 0 || (out && out.item);
             return { mats, out, profit: priced && known ? value - cost : null };
         }
 
         function methodRows(xpNeeded) {
             const curLvl = OSRS.levelForXp(state.curXp, 99);
-            const mult = bonusMult();
             const q = $('calcSearch').value.trim().toLowerCase();
+            const cat = $('calcCat').value;
             const f2p = $('calcMembers').value === 'f2p';
             const unlockedOnly = $('calcShow').value === 'unlocked';
             const out = [];
-            for (const r of skillData[state.skill] || []) {
+            for (const r of skillRows() || []) {
                 if (q && !r.n.toLowerCase().includes(q) && !r.m.some(m => m[0].toLowerCase().includes(q))) continue;
+                if (cat && !r.c.split(', ').includes(cat)) continue;
                 if (f2p && r.p) continue;
                 if (unlockedOnly && r.l > curLvl) continue;
-                const xp = r.x * mult;
-                const pr = priceMethod(r);
+                const a = actionOf(r);
+                const xp = a.xp;
+                const pr = priceMethod(a);
                 const actions = Math.ceil(xpNeeded / xp);
                 out.push({
-                    r, key: r.n + '|' + r.l + '|' + r.x, n: r.n, l: r.l, x: xp, actions, pr,
+                    r, a, key: r.n + '|' + r.l + '|' + r.x, n: r.n, l: r.l, x: xp, actions, pr,
                     each: pr.profit, gpxp: pr.profit == null ? null : pr.profit / xp,
                     total: pr.profit == null ? null : pr.profit * actions,
                     locked: r.l > curLvl
@@ -394,7 +469,7 @@
             const unlockedOnly = $('calcShow').value === 'unlocked';
             const curLvl = OSRS.levelForXp(state.curXp, 99);
             const out = [];
-            for (const m of monsters || []) {
+            for (const m of monsters() || []) {
                 if (q && !m.n.toLowerCase().includes(q)) continue;
                 if (slayer && !m.s) continue;
                 if (slayer && unlockedOnly && m.sl > curLvl) continue;
@@ -431,10 +506,12 @@
             return `<span class="${cls}">${n > 0 ? '+' : n < 0 ? '−' : ''}${v}</span>`;
         };
         const fmtXp = n => n % 1 === 0 ? n.toLocaleString() : n.toLocaleString(undefined, { maximumFractionDigits: 1 });
+        // Per-action quantities can be averages (9.7 planks per contract, 1/140 of a mould)
+        const fmtQty = q => q == null ? '?' : q % 1 === 0 ? String(q) : q < 0.01 ? '<0.01' : q.toFixed(2).replace(/0+$/, '');
 
         function rowIcon(row) {
             const pr = row.pr;
-            const item = (pr.out && pr.out.item) || (pr.mats[0] && pr.mats[0].item) || itemFor(row.r.w);
+            const item = (row.r.i && itemFor(row.r.i)) || (pr.out && pr.out.item) || (pr.mats[0] && pr.mats[0].item) || itemFor(row.r.w);
             return item ? GE.imgTag(item, 24) : `<img src="${OSRS.iconUrl(state.skill)}" class="skill-ico" alt="">`;
         }
 
@@ -465,6 +542,7 @@
                 h += '</div>';
             }
             h += `<div><h4>Summary</h4>
+                ${row.a.harvests ? line('Harvests per planting', row.a.harvests.toFixed(2)) : ''}
                 ${line('XP per action', fmtXp(row.x))}
                 ${line('Actions needed', n.toLocaleString())}
                 ${line('Profit per action', signed(row.each))}
@@ -498,7 +576,7 @@
             $('calcTable').querySelectorAll('tr.row').forEach(tr => tr.onclick = e => {
                 if (e.target.closest('a')) return;
                 const k = tr.dataset.key;
-                if (!skillData[state.skill]) return;          // monster rows have no detail view
+                if (isMonsterSkill(state.skill)) return;      // monster rows have no detail view
                 state.expanded.has(k) ? state.expanded.delete(k) : state.expanded.add(k);
                 render();
             });
@@ -521,12 +599,23 @@
         function render() {
             const xpNeeded = Math.max(0, state.tgtXp - state.curXp);
             renderStats(xpNeeded);
-            const isMonster = OSRS.MONSTER_SKILLS.includes(state.skill);
+            const isMonster = isMonsterSkill(state.skill);
             const isCombat = isMonster && state.skill !== 'slayer';
+            const isFarming = state.skill === 'farming';
             $('calcStyle').style.display = isCombat && state.skill !== 'hitpoints' ? '' : 'none';
             $('calcMembers').style.display = isMonster ? 'none' : '';
             $('calcPrices').style.display = isMonster ? 'none' : '';
+            $('calcCat').style.display = isMonster ? 'none' : '';
             $('calcShow').style.display = isCombat ? 'none' : '';
+            $('calcCompost').style.display = isFarming ? '' : 'none';
+            $('calcSecateursWrap').style.display = isFarming ? '' : 'none';
+
+            if (loadError) {
+                $('calcTable').innerHTML = `<div class="calc-status">${esc(loadError.message)} — calculator data is missing from this copy of the site.</div>`;
+                $('calcNote').textContent = '';
+                return;
+            }
+            if (isMonster ? !monsters() : !skillRows()) return;     // still loading
 
             if (xpNeeded <= 0) {
                 $('calcTable').innerHTML = '<div class="calc-status">Target is already reached — set a higher target level or XP.</div>';
@@ -535,7 +624,6 @@
             }
 
             if (isMonster) {
-                if (!monsters) return;
                 const all = sortRows(monsterRows(xpNeeded));
                 const rows = all.slice(0, 300);
                 const slayer = state.skill === 'slayer';
@@ -568,7 +656,7 @@
                 <td class="num">${row.l}</td>
                 <td class="num">${fmtXp(Math.round(row.x * 10) / 10)}</td>
                 <td class="num"><strong>${row.actions.toLocaleString()}</strong></td>
-                <td class="mats" title="${esc(row.r.m.map(m => (m[1] ?? '?') + '× ' + m[0]).join(', '))}">${row.r.m.map(m => (m[1] ?? '?') + '× ' + esc(m[0])).join(', ') || '<span style="color:var(--text-muted)">—</span>'}</td>
+                <td class="mats" title="${esc(row.a.mats.map(m => fmtQty(m[1]) + '× ' + m[0]).join(', '))}">${row.a.mats.map(m => fmtQty(m[1]) + '× ' + esc(m[0])).join(', ') || '<span style="color:var(--text-muted)">—</span>'}</td>
                 <td class="num">${signed(row.each)}</td>
                 <td class="num">${signed(row.gpxp, 2)}</td>
                 <td class="num">${signed(row.total)}</td>`, detailHTML) : '<div class="calc-status">No methods match your filters</div>';
@@ -579,7 +667,7 @@
                 + (SKILL_NOTES[state.skill] ? '<br>' + SKILL_NOTES[state.skill] : '');
         }
 
-        ['calcSearch', 'calcShow', 'calcMembers', 'calcPrices', 'calcStyle'].forEach(id => {
+        ['calcSearch', 'calcCat', 'calcShow', 'calcMembers', 'calcPrices', 'calcStyle', 'calcCompost', 'calcSecateurs'].forEach(id => {
             $(id).addEventListener(id === 'calcSearch' ? 'input' : 'change', () => render());
         });
 
