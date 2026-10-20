@@ -40,9 +40,11 @@ const OSRS = {
 
     iconUrl(key) { return 'icons/skills/' + key + '.png'; },
 
-    // "chambers_of_xeric_challenge_mode" -> "Chambers Of Xeric Challenge Mode"
+    // "chambers_of_xeric_challenge_mode" -> "Chambers of Xeric Challenge Mode"
     metricName(key) {
-        return key.split('_').map(w => w[0].toUpperCase() + w.slice(1)).join(' ');
+        return key.split('_')
+            .map((w, i) => i && ['of', 'the', 'and'].includes(w) ? w : w[0].toUpperCase() + w.slice(1))
+            .join(' ');
     },
 
     // --- XP table (index = level) ---

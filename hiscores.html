@@ -36,7 +36,6 @@
         .hs-note { font-size: 0.75rem; color: var(--text-muted); }
 
         .hs-layout { display: grid; grid-template-columns: minmax(0, 3fr) minmax(0, 2fr); gap: 16px; align-items: start; }
-        .hs-side { display: flex; flex-direction: column; gap: 16px; }
 
         .hs-skills { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
         .hs-skill {
@@ -57,10 +56,27 @@
         .hs-skill-meta { display: flex; justify-content: space-between; gap: 6px; font-size: 0.7rem; color: var(--text-muted); font-variant-numeric: tabular-nums; }
         .hs-skill-meta .positive { font-weight: 600; }
 
-        .hs-table td, .hs-table th { padding: 8px 10px; font-size: 0.8rem; }
-        .hs-table th { cursor: default; }
-        .hs-table .num { text-align: right; font-variant-numeric: tabular-nums; }
+        /* Boss / activity tiles (RuneLite-style icon grid) */
+        .hs-tiles { display: grid; grid-template-columns: repeat(auto-fill, minmax(104px, 1fr)); gap: 6px; }
+        .hs-tile {
+            position: relative; display: flex; flex-direction: column; align-items: center; gap: 4px;
+            padding: 10px 6px 8px; border-radius: var(--radius-sm); text-align: center;
+            border: 1px solid rgba(255,255,255,0.05); background: rgba(255,255,255,0.02);
+            transition: background 0.2s, border-color 0.2s;
+        }
+        .hs-tile:hover { background: rgba(255,255,255,0.05); border-color: rgba(255,255,255,0.12); opacity: 1; }
+        .hs-tile-icon { height: 38px; display: flex; align-items: center; justify-content: center; }
+        /* Game sprites are 11-19px; an exact 2x keeps the pixels crisp */
+        .hs-tile-icon img { zoom: 2; image-rendering: pixelated; filter: drop-shadow(0 0 0.5px rgba(255,255,255,0.4)); }
+        .hs-tile-val { font-size: 0.95rem; font-weight: 700; color: #fff; font-variant-numeric: tabular-nums; line-height: 1.1; }
+        .hs-tile-nm { font-size: 0.66rem; color: var(--text-secondary); max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .hs-tile-gain { position: absolute; top: 5px; right: 6px; font-size: 0.62rem; font-weight: 600; font-variant-numeric: tabular-nums; }
+        .hs-tile.unranked .hs-tile-icon, .hs-tile.unranked .hs-tile-val { opacity: 0.3; }
+        .hs-tile.unranked .hs-tile-nm { opacity: 0.5; }
+        .hs-tile-controls { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+        .hs-tile-summary { font-size: 0.75rem; color: var(--text-secondary); }
         .hs-empty { color: var(--text-muted); font-size: 0.85rem; padding: 12px 0; }
+        .hs-foot { margin-top: 12px; font-size: 0.7rem; color: var(--text-muted); }
         .hs-status { text-align: center; padding: 48px 20px; color: var(--text-secondary); }
         .hs-status.error { color: var(--red); }
         .hs-credit { margin-top: 24px; font-size: 0.72rem; color: var(--text-muted); text-align: center; }
@@ -75,6 +91,9 @@
             .hs-skills { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; }
             .hs-skill { padding: 8px; gap: 8px; }
             .hs-skill-lvl { font-size: 1rem; }
+            .hs-tiles { grid-template-columns: repeat(auto-fill, minmax(76px, 1fr)); gap: 4px; }
+            .hs-tile { padding: 8px 4px 6px; }
+            .hs-tile-val { font-size: 0.85rem; }
         }
     </style>
 </head>
@@ -127,16 +146,30 @@
                     </div>
                     <div class="hs-skills" id="hsSkills"></div>
                 </div>
-                <div class="hs-side">
-                    <div class="card">
-                        <div class="card-header"><span class="card-title">Bosses</span></div>
-                        <div class="table-wrap" id="hsBosses"></div>
+                <div class="card">
+                    <div class="card-header">
+                        <span class="card-title">Clues & Activities</span>
+                        <span class="hs-tile-summary" id="hsActivitySummary"></span>
                     </div>
-                    <div class="card">
-                        <div class="card-header"><span class="card-title">Clues & Activities</span></div>
-                        <div class="table-wrap" id="hsActivities"></div>
+                    <div class="hs-tiles" id="hsActivities"></div>
+                </div>
+            </div>
+
+            <div class="card" style="margin-top:16px">
+                <div class="card-header" style="flex-wrap:wrap;gap:10px">
+                    <span class="card-title">Bosses</span>
+                    <div class="hs-tile-controls">
+                        <span class="hs-tile-summary" id="hsBossSummary"></span>
+                        <select id="hsBossSort">
+                            <option value="order">Hiscores order</option>
+                            <option value="kc">Most kills</option>
+                            <option value="gained">Most kills this period</option>
+                        </select>
+                        <label class="checkbox-label"><input type="checkbox" id="hsBossRanked"> Ranked only</label>
                     </div>
                 </div>
+                <div class="hs-tiles" id="hsBosses"></div>
+                <div class="hs-foot">-- means not ranked: the official hiscores only list a kill count once it passes a minimum. Click a boss to open it on the OSRS Wiki.</div>
             </div>
         </div>
 
@@ -212,7 +245,7 @@
             const s = player.latestSnapshot.data;
             const overall = s.skills.overall;
             const g = gains && gains.data;
-            const gainSub = (n, unit) => n > 0 ? `<div class="stat-sub positive">+${unit === 'h' ? n.toFixed(1) + 'h' : GE.fmtGp(n)} this period</div>` : '<div class="stat-sub">&nbsp;</div>';
+            const gainSub = (n, unit) => n >= (unit === 'h' ? 0.05 : 1) ? `<div class="stat-sub positive">+${unit === 'h' ? n.toFixed(1) + 'h' : GE.fmtGp(n)} this period</div>` : '<div class="stat-sub">&nbsp;</div>';
             const card = (label, value, sub) => `<div class="stat-card"><div class="stat-label">${label}</div><div class="stat-value">${value}</div>${sub}</div>`;
             $('hsStats').innerHTML = [
                 card('Total Level', overall.level.toLocaleString(), `<div class="stat-sub">Rank ${fmtRank(overall.rank)}</div>`),
@@ -252,28 +285,59 @@
             }).join('');
         }
 
-        function renderTable(el, data, gainData, field, emptyMsg) {
-            const rows = Object.entries(data)
-                .filter(([, v]) => v[field] > 0)
-                .sort((a, b) => b[1][field] - a[1][field]);
-            if (!rows.length) { $(el).innerHTML = `<div class="hs-empty">${emptyMsg}</div>`; return; }
-            $(el).innerHTML = `<table class="hs-table"><thead><tr>
-                    <th>Name</th><th class="num">${field === 'kills' ? 'KC' : 'Score'}</th><th class="num">Rank</th><th class="num">Gained</th>
-                </tr></thead><tbody>${rows.map(([k, v]) => {
-                    const gained = gainData && gainData[k] ? gainData[k][field].gained : 0;
-                    return `<tr><td>${name(k)}</td><td class="num">${v[field].toLocaleString()}</td>
-                        <td class="num" style="color:var(--text-secondary)">${fmtRank(v.rank)}</td>
-                        <td class="num">${fmtGain(gained) || '<span style="color:var(--text-muted)">—</span>'}</td></tr>`;
-                }).join('')}</tbody></table>`;
+        // Wiki search lands straight on the page when the name matches one exactly
+        function wikiSearch(k) {
+            const q = k.startsWith('clue_scrolls') ? 'Treasure Trails' : (NAMES[k] || OSRS.metricName(k)).replace(/\s*\(.*\)$/, '');
+            return 'https://oldschool.runescape.wiki/?title=Special%3ASearch&go=Go&search=' + encodeURIComponent(q);
+        }
+
+        // Icon grid of bosses or activities. Unranked entries come back from the hiscores as -1.
+        // Returns { ranked, total, gained } for the card header.
+        function renderTiles(el, data, gainData, field, opts) {
+            const gainOf = k => gainData && gainData[k] ? Math.max(0, gainData[k][field].gained) : 0;
+            let rows = Object.entries(data);
+            if (opts.rankedOnly) rows = rows.filter(([, v]) => v[field] > 0);
+            if (opts.sort === 'kc') rows.sort((a, b) => b[1][field] - a[1][field]);
+            if (opts.sort === 'gained') rows.sort((a, b) => gainOf(b[0]) - gainOf(a[0]) || b[1][field] - a[1][field]);
+
+            const unit = field === 'kills' ? 'KC' : 'score';
+            $(el).innerHTML = rows.length ? rows.map(([k, v]) => {
+                const ranked = v[field] > 0;
+                const gained = gainOf(k);
+                const title = `${name(k)} — ${ranked ? v[field].toLocaleString() + ' ' + unit + ', rank ' + fmtRank(v.rank) : 'not ranked'}`
+                    + (gained ? ` · +${gained.toLocaleString()} this period` : '');
+                return `<a class="hs-tile${ranked ? '' : ' unranked'}" href="${wikiSearch(k)}" target="_blank" rel="noopener noreferrer" title="${esc(title)}">
+                    ${gained ? `<span class="hs-tile-gain positive">+${GE.fmtGp(gained)}</span>` : ''}
+                    <span class="hs-tile-icon"><img src="icons/hiscores/${k}.png" alt="" onerror="this.style.visibility='hidden'"></span>
+                    <span class="hs-tile-val">${ranked ? v[field].toLocaleString() : '--'}</span>
+                    <span class="hs-tile-nm">${esc(name(k))}</span>
+                </a>`;
+            }).join('') : `<div class="hs-empty">${opts.empty}</div>`;
+
+            const all = Object.entries(data);
+            return {
+                ranked: all.filter(([, v]) => v[field] > 0).length,
+                total: all.reduce((s, [, v]) => s + Math.max(0, v[field]), 0),
+                gained: all.reduce((s, [k]) => s + gainOf(k), 0)
+            };
+        }
+
+        function renderKills() {
+            const d = player.latestSnapshot.data;
+            const g = gains && gains.data;
+            const b = renderTiles('hsBosses', d.bosses, g && g.bosses, 'kills', {
+                sort: $('hsBossSort').value, rankedOnly: $('hsBossRanked').checked, empty: 'No ranked boss kills'
+            });
+            $('hsBossSummary').innerHTML = `${b.ranked} of ${Object.keys(d.bosses).length} ranked · ${b.total.toLocaleString()} total KC`
+                + (b.gained ? ` · <span class="positive">+${b.gained.toLocaleString()} this period</span>` : '');
+            const a = renderTiles('hsActivities', d.activities, g && g.activities, 'score', { sort: 'order', empty: 'No ranked clues or activities' });
+            $('hsActivitySummary').textContent = `${a.ranked} ranked`;
         }
 
         function render() {
             renderHeader();
             renderSkills();
-            const d = player.latestSnapshot.data;
-            const g = gains && gains.data;
-            renderTable('hsBosses', d.bosses, g && g.bosses, 'kills', 'No ranked boss kills');
-            renderTable('hsActivities', d.activities, g && g.activities, 'score', 'No ranked clues or activities');
+            renderKills();
 
             // Gains run from Wise Old Man's earliest snapshot inside the period, which can be much
             // later than the period start for players nobody updates regularly
@@ -354,6 +418,8 @@
 
         $('hsForm').onsubmit = e => { e.preventDefault(); lookup($('hsInput').value); };
         $('hsUpdate').onclick = () => update(false);
+        $('hsBossSort').onchange = () => player && renderKills();
+        $('hsBossRanked').onchange = () => player && renderKills();
         document.querySelectorAll('#hsPeriod .tf-tab').forEach(btn => {
             btn.onclick = () => {
                 document.querySelectorAll('#hsPeriod .tf-tab').forEach(b => b.classList.remove('active'));
