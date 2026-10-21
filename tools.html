@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22%3E%3Ctext y=%22.9em%22 font-size=%2290%22%3E%E2%9A%94%EF%B8%8F%3C/text%3E%3C/svg%3E">
-    <title>OSRS Hub — Tools</title>
+    <title>OSRS Hub — Trading</title>
     <link rel="preconnect" href="https://prices.runescape.wiki">
     <link rel="preconnect" href="https://oldschool.runescape.wiki">
     <link rel="preconnect" href="https://cdn.jsdelivr.net">
@@ -82,7 +82,7 @@
     <div id="nav"></div>
     <div class="page">
         <div class="page-header">
-            <h1 class="page-title">Tools</h1>
+            <h1 class="page-title">Trading</h1>
             <p class="page-subtitle">Flip finder, alch profits, price comparison & more</p>
         </div>
 
@@ -103,6 +103,15 @@
                 <div class="tool-filters">
                     <label>Min Margin <input type="number" id="flipMinMargin" value="100" min="0"></label>
                     <label>Min Buy Limit <input type="number" id="flipMinLimit" value="1" min="0"></label>
+                    <label title="Trades per day on each side (instant buys and instant sells), from yesterday's GE data">Min Daily Volume <input type="number" id="flipMinVol" value="10" min="0"></label>
+                    <label title="Skip items whose last instant buy or sell is older than this">Prices From <select id="flipMaxAge">
+                        <option value="30">Last 30 min</option>
+                        <option value="60">Last hour</option>
+                        <option value="120" selected>Last 2 hours</option>
+                        <option value="360">Last 6 hours</option>
+                        <option value="1440">Last 24 hours</option>
+                        <option value="0">Any time</option>
+                    </select></label>
                     <label><select id="flipMembers">
                         <option value="all">All Items</option>
                         <option value="members">Members</option>
@@ -180,7 +189,7 @@
     <script src="js/api.js"></script>
     <script>
     (async () => {
-        document.getElementById('nav').innerHTML = GE.navHTML('Tools');
+        document.getElementById('nav').innerHTML = GE.navHTML('Trading');
         GE.initAutocomplete();
 
         // Tab switching
@@ -198,13 +207,20 @@
         const NATURE_ID = 561;
 
         // ===================== Flip Finder =====================
-        let flipData = [], flipSort = { col: 'margin', dir: 'desc' };
+        let flipData = [], flipHidden = 0, flipSort = { col: 'margin', dir: 'desc' };
 
-        function buildFlips() {
+        // A "margin" between an instant buy and an instant sell is only real if both happen often
+        // and recently: rare items (3rd age, brand-new uniques) show two stale one-off trades
+        // millions apart that nobody could flip.
+        function buildFlips(daily) {
             const minMargin = parseInt(document.getElementById('flipMinMargin').value) || 0;
             const minLimit  = parseInt(document.getElementById('flipMinLimit').value) || 0;
+            const minVol    = parseInt(document.getElementById('flipMinVol').value) || 0;
+            const maxAge    = parseInt(document.getElementById('flipMaxAge').value) * 60;   // seconds; 0 = any
             const mf = document.getElementById('flipMembers').value;
+            const nowSec = Date.now() / 1000;
             const out = [];
+            let hidden = 0;
             for (const [id, p] of Object.entries(latest)) {
                 if (!p.high || !p.low || p.high <= p.low) continue;
                 const m = mapping[id];
@@ -215,14 +231,21 @@
                 const tax = GE.geTax(p.high);
                 const margin = p.high - p.low - tax;
                 if (margin < minMargin) continue;
+                // Buying fills against instant sells (low price), selling against instant buys (high)
+                const d = daily ? daily[id] || {} : null;
+                const buyVol = d ? d.lowPriceVolume || 0 : null, sellVol = d ? d.highPriceVolume || 0 : null;
+                const age = nowSec - Math.min(p.highTime || 0, p.lowTime || 0);
+                if ((d && Math.min(buyVol, sellVol) < minVol) || (maxAge && age > maxAge)) { hidden++; continue; }
                 out.push({
                     id, name: m.name, buy: p.low, sell: p.high, tax, margin,
                     roi: (margin / p.low) * 100,
+                    vol: d ? Math.min(buyVol, sellVol) : 0, buyVol, sellVol,
                     limit: m.limit || 0,
                     ppl: m.limit ? margin * m.limit : 0,
                     meta: m
                 });
             }
+            flipHidden = hidden;
             return out;
         }
 
@@ -237,7 +260,7 @@
             const cols = [
                 ['name','Item','left'],['buy','Buy','right'],['sell','Sell','right'],
                 ['tax','Tax','right'],['margin','Margin','right'],['roi','ROI %','right'],
-                ['limit','Limit','right'],['ppl','Profit/Limit','right']
+                ['vol','Vol/Day','right'],['limit','Limit','right'],['ppl','Profit/Limit','right']
             ];
             let h = '<div class="tool-table-wrap"><table class="tool-table"><thead><tr>';
             for (const [k,l,a] of cols) {
@@ -254,12 +277,15 @@
                     <td style="text-align:right;color:var(--red)">${GE.fmtGp(r.tax)}</td>
                     <td style="text-align:right" class="${c}">${GE.fmtGp(r.margin)}</td>
                     <td style="text-align:right" class="${c}">${r.roi.toFixed(1)}%</td>
+                    <td style="text-align:right" title="${r.buyVol == null ? 'Daily volume unavailable' : `Yesterday: ${r.buyVol.toLocaleString()} instant sells (you buy) / ${r.sellVol.toLocaleString()} instant buys (you sell)`}">${r.buyVol == null ? '—' : `${GE.fmtGp(r.buyVol)} / ${GE.fmtGp(r.sellVol)}`}</td>
                     <td style="text-align:right">${r.limit ? r.limit.toLocaleString() : '—'}</td>
-                    <td style="text-align:right" class="${c}">${GE.fmtGp(r.ppl)}</td>
+                    <td style="text-align:right" class="${r.limit ? c : ''}">${r.limit ? GE.fmtGp(r.ppl) : '—'}</td>
                 </tr>`;
             }
             h += '</tbody></table></div>';
-            h += `<div style="margin-top:12px;font-size:0.75rem;color:var(--text-muted)">Showing top ${top.length} of ${flipData.length} items</div>`;
+            h += `<div style="margin-top:12px;font-size:0.75rem;color:var(--text-muted)">Showing top ${top.length} of ${flipData.length} items`
+                + (flipHidden ? ` · ${flipHidden.toLocaleString()} hidden for trading too rarely or having old prices — loosen Min Daily Volume / Prices From to see them` : '')
+                + '. Vol/Day is yesterday\'s trades: how often you could buy / sell.</div>';
             document.getElementById('flipResults').innerHTML = h;
 
             document.querySelectorAll('#flipResults th[data-col]').forEach(th => {
@@ -272,7 +298,15 @@
             });
         }
 
-        function runFlips() { flipData = buildFlips(); flipSort = { col: 'margin', dir: 'desc' }; renderFlips(); }
+        let flipDaily;      // undefined = not loaded yet, null = unavailable (volume filter skipped)
+        async function runFlips() {
+            if (flipDaily === undefined) {
+                try { flipDaily = (await GE.getDaily()).data; } catch (e) { flipDaily = null; }
+            }
+            flipData = buildFlips(flipDaily);
+            flipSort = { col: 'margin', dir: 'desc' };
+            renderFlips();
+        }
         document.getElementById('flipScan').onclick = runFlips;
         runFlips();
 

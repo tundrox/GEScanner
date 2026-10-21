@@ -300,7 +300,7 @@
 
                 const latest = (latestData.data || latestData)[itemId];
 
-                // Track for Recently Viewed in Tools page
+                // Track for Recently Viewed on the Trading page
                 try {
                     let recent = JSON.parse(localStorage.getItem('ge_recent')) || [];
                     recent = recent.filter(r => r !== itemId);

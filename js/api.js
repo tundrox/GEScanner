@@ -84,6 +84,13 @@ const GE = {
     },
     async get1h(ts)        { return ts ? this.fetch('/1h', { timestamp: ts }) : this.fetch('/1h'); },
     async get5m(ts)        { return ts ? this.fetch('/5m', { timestamp: ts }) : this.fetch('/5m'); },
+    // Trades and average prices for the last full UTC day. The API's plain /24h lags a day
+    // behind, so ask for yesterday explicitly and fall back if it isn't published yet.
+    async getDaily() {
+        const today = Math.floor(Date.now() / 86400000) * 86400;
+        const y = await this.fetch('/24h', { timestamp: today - 86400 });
+        return y.data && Object.keys(y.data).length ? y : this.fetch('/24h');
+    },
     async getTimeseries(id, timestep, force = false) {
         // Use preloaded timeseries if available (item page only; skip when forcing)
         if (!force && window.__gePreload && window.__gePreload.timeseries) {
@@ -193,7 +200,7 @@ const GE = {
             ['index.html', 'Dashboard'],
             ['browse.html', 'Browse'],
             ['scanner.html', 'Scanner'],
-            ['tools.html', 'Tools'],
+            ['tools.html', 'Trading'],
             ['hiscores.html', 'Hiscores'],
             ['calculators.html', 'Calculators']
         ];
