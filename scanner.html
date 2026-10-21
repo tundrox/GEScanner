@@ -435,6 +435,7 @@
             const progressPct = document.getElementById('progressPct');
             progress.style.display = 'block';
             document.getElementById('resultsCard').style.display = 'none';
+            document.getElementById('statusText').textContent = '';
             results = [];
 
             try {
@@ -462,20 +463,22 @@
                 const modeLabel = isDH ? 'holds' : 'spikes';
                 progressText.textContent = `${candidates.length} candidates · ${days}d lookback`;
 
-                const BATCH = 12;
-                for (let i = 0; i < candidates.length; i += BATCH) {
-                    const batch = candidates.slice(i, i + BATCH);
-                    const batchResults = await Promise.all(
-                        batch.map(async id => {
-                            try {
-                                const ts = await GE.getTimeseries(id, lookback);
-                                return { id, w: GE.lastDays(ts, days) };
-                            } catch { return { id, w: [] }; }
-                        })
-                    );
+                // One item's history per request. GE paces them (GE.TS_RATE a second; cached ones are instant),
+                // so a batch is about a second of requests. If the API starts refusing (network error, 429 or
+                // 5xx), wait it out and retry; any other error just means no history for that item.
+                const PAUSE_SECS = 30, MAX_PAUSES = 3;
+                const todo = candidates.slice();
+                let scanned = 0, pauses = 0, skipped = 0;
+                while (todo.length) {
+                    const batch = todo.splice(0, GE.TS_RATE);
+                    const batchResults = await Promise.all(batch.map(id =>
+                        GE.getTimeseries(id, lookback).then(ts => ({ id, w: GE.lastDays(ts, days) }),
+                            e => /^API 4(?!29)/.test(e.message) ? { id, w: [] } : { id, failed: true })));
+                    const retry = batchResults.filter(r => r.failed).map(r => r.id);
+                    scanned += batch.length - retry.length;
 
-                    batchResults.forEach(({ id, w }) => {
-                        if (w.length < 6) return;
+                    batchResults.forEach(({ id, w, failed }) => {
+                        if (failed || w.length < 6) return;
 
                         const meta = mapping[id];
 
@@ -544,11 +547,20 @@
                         }
                     });
 
-                    const pct = Math.min(100, Math.round(((i + batch.length) / candidates.length) * 100));
+                    const pct = Math.min(100, Math.round((scanned / candidates.length) * 100));
                     progressBar.style.width = pct + '%';
                     progressPct.textContent = pct + '%';
-                    progressText.textContent = `Scanned ${Math.min(i + batch.length, candidates.length)} / ${candidates.length} · ${results.length} ${modeLabel} found`;
-                    await new Promise(r => setTimeout(r, 200));
+                    progressText.textContent = `Scanned ${scanned} / ${candidates.length} · ${results.length} ${modeLabel} found`
+                        + (todo.length > GE.TS_RATE ? ` · about ${Math.ceil(todo.length / GE.TS_RATE)}s left` : '');
+
+                    if (retry.length) {
+                        if (pauses++ === MAX_PAUSES) { skipped = retry.length + todo.length; break; }
+                        todo.unshift(...retry);
+                        for (let s = PAUSE_SECS; s > 0; s--) {
+                            progressText.textContent = `The price API is busy, retrying in ${s}s · scanned ${scanned} / ${candidates.length}`;
+                            await new Promise(r => setTimeout(r, 1000));
+                        }
+                    }
                 }
 
                 if (isDH) {
@@ -559,6 +571,10 @@
                     results.sort((a, b) => b.pricePct - a.pricePct);
                 }
                 renderResults(days);
+                if (skipped) {
+                    document.getElementById('statusText').textContent =
+                        `Stopped early: the price API kept refusing requests, so ${skipped} of ${candidates.length} items weren't checked. Try again in a few minutes.`;
+                }
             } catch (err) {
                 console.error(err);
                 document.getElementById('statusText').textContent = 'Error: ' + err.message;

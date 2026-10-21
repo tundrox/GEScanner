@@ -48,11 +48,24 @@ const GE = {
 
     // Plain request with no caching, for responses too big or too many to keep in sessionStorage
     async _getJson(endpoint, params = {}) {
+        if (endpoint === '/timeseries') await this._tsSlot();
         const url = new URL(this.BASE + endpoint);
         Object.entries(params).forEach(([k, v]) => url.searchParams.set(k, v));
         const res = await fetch(url);
         if (!res.ok) throw new Error(`API ${res.status}`);
         return res.json();
+    },
+
+    // Timeseries requests go one per item, and bursts make the API answer 502 (with no CORS header, so the
+    // browser reports a network error) for about a minute. So each page starts at most TS_RATE a second;
+    // cached responses don't count.
+    TS_RATE: 5,
+    _tsNext: 0,
+    _tsSlot() {
+        const now = Date.now();
+        const at = Math.max(now, this._tsNext);
+        this._tsNext = at + 1000 / this.TS_RATE;
+        return at > now ? new Promise(r => setTimeout(r, at - now)) : Promise.resolve();
     },
 
     async getMapping() {
@@ -338,9 +351,9 @@ const GE = {
     // --- Price history for the highs/lows views (dashboard Price Extremes, Browse Highs/Lows) ---
     // A year of daily average buy prices for the items that really trade, kept in localStorage so every tab
     // and both pages share it. Daily prices only change once a day, so a browser fetches each item's history
-    // once (~260 requests, paced and saved as it goes, so leaving the page mid-scan loses nothing); after that
-    // a new UTC day costs one /24h snapshot (every item at once) plus a timeseries request for the few items
-    // that newly qualify.
+    // once (~260 requests at GE.TS_RATE a second, saved as it goes, so leaving the page mid-scan loses
+    // nothing); after that a new UTC day costs one /24h snapshot (every item at once) plus a timeseries
+    // request for the few items that newly qualify.
     // Stored as { day, partial, retryAt, s: { id: [price per day, oldest first, 0 = no trades] } },
     // where `day` is the timestamp of the last entry. Prices are rounded to whole gp, which keeps the
     // store small and matches what the v1 API returned.
@@ -350,7 +363,7 @@ const GE = {
     HL_TOP_VOL: 50,                // ...plus the most units traded
     HL_MIN_VOL: 24,                // ~one trade an hour, or a daily average is just a few odd trades
     HL_RARE_PRICE: 10000000,       // ...plus anything worth 10M+ that trades at all (rare, expensive items)
-    HL_BATCH: 5,                   // timeseries requests at a time, one batch a second (bursts get 502s)
+    HL_BATCH: 5,                   // timeseries requests in flight at once (GE.TS_RATE paces them)
     HL_RETRY: 2 * 60 * 1000,       // wait after a failed request before trying again
     HL_RECHECK: 15 * 60 * 1000,    // wait after finding yesterday isn't published yet
 
@@ -430,7 +443,6 @@ const GE = {
         const BATCH = this.HL_BATCH;
         let failed = false;
         for (let i = 0; i < missing.length && !failed; i += BATCH) {
-            if (i) await new Promise(r => setTimeout(r, 1000));
             const batch = missing.slice(i, i + BATCH);
             const results = await Promise.all(batch.map(id =>
                 this._getJson('/timeseries', { id, lookback: '1y' }).catch(() => null)));
