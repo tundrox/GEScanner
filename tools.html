@@ -17,8 +17,8 @@
     <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns"></script>
     <script>
         window.__gePreload = {
-            mapping: fetch('https://prices.runescape.wiki/api/v1/osrs/mapping').then(r => r.json()),
-            latest: fetch('https://prices.runescape.wiki/api/v1/osrs/latest').then(r => r.json())
+            mapping: fetch('https://prices.runescape.wiki/api/v2/osrs/mapping').then(r => r.json()),
+            latest: fetch('https://prices.runescape.wiki/api/v2/osrs/latest').then(r => r.json())
         };
     </script>
     <style>
@@ -487,12 +487,12 @@
                 return;
             }
             const norm = document.getElementById('compareNormalize').checked;
-            const ts = GE.timestepForDays(cmpDays);
+            const lookback = GE.lookbackForDays(cmpDays);
             const datasets = [];
 
             for (let i = 0; i < cmpItems.length; i++) {
                 try {
-                    const res = await GE.fetch('/timeseries', { id: cmpItems[i].id, timestep: ts });
+                    const res = await GE.getTimeseries(cmpItems[i].id, lookback);
                     const pts = (res.data || []).filter(p => p.timestamp >= Date.now() / 1000 - cmpDays * 86400);
                     if (!pts.length) continue;
                     const base = pts[0].avgHighPrice || pts[0].avgLowPrice || 1;

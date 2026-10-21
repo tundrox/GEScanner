@@ -15,8 +15,8 @@
     <script>
         // Start API fetches immediately — don't wait for api.js to load
         window.__gePreload = {
-            mapping: fetch('https://prices.runescape.wiki/api/v1/osrs/mapping').then(r => r.json()),
-            latest: fetch('https://prices.runescape.wiki/api/v1/osrs/latest').then(r => r.json())
+            mapping: fetch('https://prices.runescape.wiki/api/v2/osrs/mapping').then(r => r.json()),
+            latest: fetch('https://prices.runescape.wiki/api/v2/osrs/latest').then(r => r.json())
         };
     </script>
     <style>
@@ -248,7 +248,8 @@
                 const avgVol = volCount > 0 ? volSum / volCount : 0;
                 const volRatio = avgVol > 0 ? curVol / avgVol : 0;
 
-                items.push({ id, meta, curPrice, prevPrice, pricePct, curVol, avgVol, volRatio });
+                // Hourly averages can have decimals; the % uses them, the table shows whole gp
+                items.push({ id, meta, curPrice: Math.round(curPrice), prevPrice, pricePct, curVol, avgVol, volRatio });
             });
             return { items };
         }
@@ -357,7 +358,7 @@
                 Object.keys(history).forEach(id => {
                     const meta = mapping[id];
                     const d = nowData[id];
-                    const cur = d ? (d.avgHighPrice || d.avgLowPrice || 0) : 0;
+                    const cur = Math.round(d ? (d.avgHighPrice || d.avgLowPrice || 0) : 0);   // whole gp, like the stored history
                     if (!meta || !cur) return;      // no trades this hour, so nothing to compare
                     _52weekItems.push({ id, meta, curPrice: cur, pts: history[id] });
                 });

@@ -20,11 +20,12 @@
         const __params = new URLSearchParams(location.search);
         const __itemId = __params.get('id');
         const __days = parseInt(__params.get('days')) || 30;
-        const __timestep = __days <= 15 ? '1h' : __days <= 90 ? '6h' : '24h';
+        const __lookback = __days <= 7 ? '7d' : __days <= 30 ? '30d' : __days <= 180 ? '6m' : '1y';   // = GE.lookbackForDays
         window.__gePreload = {
-            mapping: fetch('https://prices.runescape.wiki/api/v1/osrs/mapping').then(r => r.json()),
-            latest: fetch('https://prices.runescape.wiki/api/v1/osrs/latest').then(r => r.json()),
-            timeseries: __itemId ? fetch(`https://prices.runescape.wiki/api/v1/osrs/timeseries?id=${__itemId}&timestep=${__timestep}`).then(r => r.json()) : null
+            mapping: fetch('https://prices.runescape.wiki/api/v2/osrs/mapping').then(r => r.json()),
+            latest: fetch('https://prices.runescape.wiki/api/v2/osrs/latest').then(r => r.json()),
+            timeseries: __itemId ? fetch(`https://prices.runescape.wiki/api/v2/osrs/timeseries?id=${__itemId}&lookback=${__lookback}`).then(r => r.json()) : null,
+            lookback: __lookback
         };
     </script>
     <style>
@@ -138,7 +139,6 @@
                         <button class="tf-tab" data-days="90">90D</button>
                         <button class="tf-tab" data-days="180">6M</button>
                         <button class="tf-tab" data-days="365">1Y</button>
-                        <button class="tf-tab" data-days="9999">All</button>
                     </div>
                 </div>
             </div>
@@ -174,8 +174,10 @@
 
         const params = new URLSearchParams(location.search);
         const itemId = params.get('id');
-        const validDays = [1, 7, 30, 60, 90, 180, 365, 9999];
-        const defaultDays = validDays.includes(parseInt(params.get('days'))) ? parseInt(params.get('days')) : 30;
+        const validDays = [1, 7, 30, 60, 90, 180, 365];
+        // The price history goes back a year at most, so old "All" links (days=9999) open 1Y
+        const urlDays = Math.min(parseInt(params.get('days')) || 30, 365);
+        const defaultDays = validDays.includes(urlDays) ? urlDays : 30;
         if (!itemId) { document.getElementById('heroSection').innerHTML = '<div class="error-msg">No item ID provided. <a href="browse.html">Browse items</a></div>'; }
 
         // Set the active tab based on URL param
@@ -267,7 +269,7 @@
                 const latestData = await GE.getLatest(force);
                 const latest = (latestData.data || latestData)[itemId];
                 renderPriceStats(itemMeta, latest);
-                delete cachedSeries[`${itemId}_${GE.timestepForDays(currentDays)}`];
+                delete cachedSeries[`${itemId}_${GE.lookbackForDays(currentDays)}`];
                 await loadChart(currentDays, force);
                 markUpdated();
             } catch (err) {
@@ -354,20 +356,18 @@
         })();
 
         async function loadChart(days, force = false) {
-            const timestep = GE.timestepForDays(days);
-            const cacheKey = `${itemId}_${timestep}`;
+            const lookback = GE.lookbackForDays(days);
+            const cacheKey = `${itemId}_${lookback}`;
 
-            let series;
+            let ts;
             if (!force && cachedSeries[cacheKey]) {
-                series = cachedSeries[cacheKey];
+                ts = cachedSeries[cacheKey];
             } else {
-                const ts = await GE.getTimeseries(itemId, timestep, force);
-                series = ts.data || [];
-                cachedSeries[cacheKey] = series;
+                ts = await GE.getTimeseries(itemId, lookback, force);
+                cachedSeries[cacheKey] = ts;
             }
 
-            const needed = GE.pointsForDays(days, timestep);
-            const window = series.slice(-needed);
+            const window = GE.lastDays(ts, days);
 
             const labels = window.map(p => new Date(p.timestamp * 1000));
             const buyPrices = window.map(p => p.avgHighPrice || null);
@@ -383,7 +383,7 @@
                     const statEl = document.getElementById('statChange');
                     statEl.innerHTML = `
                         <div class="stat-value ${GE.pctClass(changePct)}">${GE.fmtPct(changePct)}</div>
-                        <div class="stat-label">${days === 1 ? '24H' : days === 180 ? '6M' : days === 9999 ? 'All Time' : days >= 365 ? '1Y' : days + 'D'} Change</div>
+                        <div class="stat-label">${days === 1 ? '24H' : days === 180 ? '6M' : days >= 365 ? '1Y' : days + 'D'} Change</div>
                     `;
                 }
             }
@@ -515,10 +515,11 @@
                             boxHeight: 8,
                             boxPadding: 4,
                             callbacks: {
-                                label: ctx => ctx.dataset.label + ': ' + (ctx.parsed.y != null ? ctx.parsed.y.toLocaleString() + ' gp' : '—'),
+                                // Averages can have decimals; show whole gp
+                                label: ctx => ctx.dataset.label + ': ' + (ctx.parsed.y != null ? Math.round(ctx.parsed.y).toLocaleString() + ' gp' : '—'),
                                 afterBody: (items) => {
                                     if (items.length >= 2 && items[0].parsed.y && items[1].parsed.y) {
-                                        const margin = items[0].parsed.y - items[1].parsed.y;
+                                        const margin = Math.round(items[0].parsed.y) - Math.round(items[1].parsed.y);
                                         return 'Margin: ' + margin.toLocaleString() + ' gp';
                                     }
                                     return '';

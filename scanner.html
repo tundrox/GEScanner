@@ -14,8 +14,8 @@
     <link rel="stylesheet" href="css/style.css">
     <script>
         window.__gePreload = {
-            mapping: fetch('https://prices.runescape.wiki/api/v1/osrs/mapping').then(r => r.json()),
-            latest: fetch('https://prices.runescape.wiki/api/v1/osrs/latest').then(r => r.json())
+            mapping: fetch('https://prices.runescape.wiki/api/v2/osrs/mapping').then(r => r.json()),
+            latest: fetch('https://prices.runescape.wiki/api/v2/osrs/latest').then(r => r.json())
         };
     </script>
     <style>
@@ -269,7 +269,6 @@
                     <button class="tf-tab" data-days="90">90D</button>
                     <button class="tf-tab" data-days="180">6M</button>
                     <button class="tf-tab" data-days="365">1Y</button>
-                    <button class="tf-tab" data-days="9999">All</button>
                 </div>
             </div>
 
@@ -411,7 +410,7 @@
             btn.textContent = 'Scanning...';
 
             const days = getSelectedDays();
-            const timestep = GE.timestepForDays(days);
+            const lookback = GE.lookbackForDays(days);
             const isDH = scanMode === 'diamond';
 
             // Read params based on mode
@@ -461,7 +460,7 @@
                 });
 
                 const modeLabel = isDH ? 'holds' : 'spikes';
-                progressText.textContent = `${candidates.length} candidates · ${days}d lookback · ${timestep} step`;
+                progressText.textContent = `${candidates.length} candidates · ${days}d lookback`;
 
                 const BATCH = 12;
                 for (let i = 0; i < candidates.length; i += BATCH) {
@@ -469,16 +468,13 @@
                     const batchResults = await Promise.all(
                         batch.map(async id => {
                             try {
-                                const ts = await GE.getTimeseries(id, timestep);
-                                return { id, data: ts.data || [] };
-                            } catch { return { id, data: [] }; }
+                                const ts = await GE.getTimeseries(id, lookback);
+                                return { id, w: GE.lastDays(ts, days) };
+                            } catch { return { id, w: [] }; }
                         })
                     );
 
-                    batchResults.forEach(({ id, data }) => {
-                        const neededPoints = GE.pointsForDays(days, timestep);
-                        if (data.length < Math.min(neededPoints, 5)) return;
-                        const w = data.slice(-neededPoints);
+                    batchResults.forEach(({ id, w }) => {
                         if (w.length < 6) return;
 
                         const meta = mapping[id];
@@ -539,7 +535,7 @@
                                     id, name: meta.name, meta,
                                     pricePct: Math.round(pricePct * 10) / 10,
                                     volPct: Math.round(volPct * 10) / 10,
-                                    curPrice, curVol,
+                                    curPrice: Math.round(curPrice), curVol,
                                     avgPrevPrice: Math.round(avgPrevPrice),
                                     avgPrevVol: Math.round(avgPrevVol),
                                     limit: meta.limit || 0

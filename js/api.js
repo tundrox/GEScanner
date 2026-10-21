@@ -1,5 +1,7 @@
 const GE = {
-    BASE: 'https://prices.runescape.wiki/api/v1/osrs',
+    // Wiki real-time prices API v2. Average prices (avgHighPrice/avgLowPrice in /5m, /1h, /24h and
+    // /timeseries) can have up to two decimals, so round them wherever they're shown.
+    BASE: 'https://prices.runescape.wiki/api/v2/osrs',
     WIKI_IMG: 'https://oldschool.runescape.wiki/w/Special:FilePath/',
     WIKI_PAGE: 'https://oldschool.runescape.wiki/w/',
     _cache: {},
@@ -93,25 +95,29 @@ const GE = {
     async get5m(ts)        { return ts ? this.fetch('/5m', { timestamp: ts }) : this.fetch('/5m'); },
     // Trades and average prices for the last full UTC day. The API's plain /24h lags a day
     // behind, so ask for yesterday explicitly and fall back if it isn't published yet.
+    // (v2 still serves /24h, though its docs only list /5m and /1h.)
     async getDaily() {
         const today = Math.floor(Date.now() / 86400000) * 86400;
         const y = await this.fetch('/24h', { timestamp: today - 86400 });
         return y.data && Object.keys(y.data).length ? y : this.fetch('/24h');
     },
-    async getTimeseries(id, timestep, force = false) {
+    // { data: [{ timestamp, avgHighPrice, ... }], timestep, startTimestamp, endTimestamp } for one of
+    // the API's lookbacks (see lookbackForDays). Only periods with trades are listed.
+    async getTimeseries(id, lookback, force = false) {
         // Use preloaded timeseries if available (item page only; skip when forcing)
-        if (!force && window.__gePreload && window.__gePreload.timeseries) {
-            const data = await window.__gePreload.timeseries;
-            window.__gePreload.timeseries = null;
+        const pre = window.__gePreload;
+        if (!force && pre && pre.timeseries && pre.lookback === lookback) {
+            const data = await pre.timeseries;
+            pre.timeseries = null;
             const url = new URL(this.BASE + '/timeseries');
             url.searchParams.set('id', id);
-            url.searchParams.set('timestep', timestep);
+            url.searchParams.set('lookback', lookback);
             const key = url.toString();
             this._cache[key] = { d: data, t: Date.now() };
             this._ssSet(key, data);
             return data;
         }
-        return this.fetch('/timeseries', { id, timestep }, force);
+        return this.fetch('/timeseries', { id, lookback }, force);
     },
 
     iconUrl(item) {
@@ -310,16 +316,23 @@ const GE = {
         });
     },
 
-    timestepForDays(days) {
-        if (days <= 15)  return '1h';
-        if (days <= 90)  return '6h';
-        return '24h';
+    // Shortest timeseries lookback that covers `days`. Measured steps: 7d hourly, 30d every 6 hours,
+    // 6m and 1y daily. A day uses the hourly 7d series too (24h is 5-minute steps, mostly empty for
+    // slower items), so 1D and 7D share a request. Keep the item page's <head> preload in step with this.
+    lookbackForDays(days) {
+        if (days <= 7)   return '7d';
+        if (days <= 30)  return '30d';
+        if (days <= 180) return '6m';
+        return '1y';
     },
 
-    pointsForDays(days, timestep) {
-        if (days >= 9999) return 99999;
-        const hoursPerStep = { '1h': 1, '6h': 6, '24h': 24 };
-        return Math.min(365, Math.ceil((days * 24) / hoursPerStep[timestep]));
+    // The points of a timeseries response from its last `days` days. Cut by time, not point count:
+    // quiet periods have no points, so a count would reach further back for slow items.
+    lastDays(ts, days) {
+        const data = (ts && ts.data) || [];
+        if (!data.length) return data;
+        const cutoff = (ts.endTimestamp || data[data.length - 1].timestamp) - days * 86400;
+        return data.filter(p => p.timestamp >= cutoff);
     },
 
     // --- Price history for the highs/lows views (dashboard Price Extremes, Browse Highs/Lows) ---
@@ -329,9 +342,10 @@ const GE = {
     // a new UTC day costs one /24h snapshot (every item at once) plus a timeseries request for the few items
     // that newly qualify.
     // Stored as { day, partial, retryAt, s: { id: [price per day, oldest first, 0 = no trades] } },
-    // where `day` is the timestamp of the last entry.
+    // where `day` is the timestamp of the last entry. Prices are rounded to whole gp, which keeps the
+    // store small and matches what the v1 API returned.
     HL_KEY: 'ge_highlow_v3',
-    HL_DAYS: 365,                  // length of the API's 24h timeseries
+    HL_DAYS: 365,                  // length of the API's 1y timeseries (daily)
     HL_TOP_GP: 150,                // the items with the most gp traded yesterday...
     HL_TOP_VOL: 50,                // ...plus the most units traded
     HL_MIN_VOL: 24,                // ~one trade an hour, or a daily average is just a few odd trades
@@ -419,14 +433,14 @@ const GE = {
             if (i) await new Promise(r => setTimeout(r, 1000));
             const batch = missing.slice(i, i + BATCH);
             const results = await Promise.all(batch.map(id =>
-                this._getJson('/timeseries', { id, timestep: '24h' }).catch(() => null)));
+                this._getJson('/timeseries', { id, lookback: '1y' }).catch(() => null)));
             results.forEach((ts, k) => {
                 if (!ts) { failed = true; return; }    // likely rate-limited: stop, keep what we have, retry later
                 const id = batch[k];
                 const s = new Array(this.HL_DAYS).fill(0);
                 (ts.data || []).forEach(p => {
                     const n = Math.round((p.timestamp - start) / DAY);
-                    if (n >= 0 && n < this.HL_DAYS && p.avgHighPrice) s[n] = p.avgHighPrice;
+                    if (n >= 0 && n < this.HL_DAYS && p.avgHighPrice) s[n] = Math.round(p.avgHighPrice);
                 });
                 // A timeseries can trail the snapshots by a day; fill the gap from them
                 Object.keys(snaps).forEach(t => { const n = (t - start) / DAY; if (!s[n]) s[n] = this._hlPrice(snaps[t], id); });
@@ -463,7 +477,7 @@ const GE = {
         });
         return [...ids];
     },
-    _hlPrice(snap, id) { return (snap[id] && snap[id].avgHighPrice) || 0; },
+    _hlPrice(snap, id) { return Math.round((snap[id] && snap[id].avgHighPrice) || 0); },
     _hlLoad() {
         try { return JSON.parse(localStorage.getItem(this.HL_KEY)); } catch (e) { return null; }
     },
