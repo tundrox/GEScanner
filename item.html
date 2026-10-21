@@ -151,8 +151,8 @@
         <div class="card" id="volChartCard" style="display:none;margin-bottom:24px">
             <div class="card-header">
                 <span class="card-title">Volume History</span>
-                <span class="card-badge" style="background:rgba(34,197,94,0.15);color:#22c55e;font-size:0.65rem">Buy</span>
-                <span class="card-badge" style="background:rgba(239,68,68,0.12);color:#ef4444;font-size:0.65rem">Sell</span>
+                <span class="card-badge" style="background:rgba(34,197,94,0.15);color:#22c55e;font-size:0.65rem" title="Players buying instantly (paying the high price)">Instant buys</span>
+                <span class="card-badge" style="background:rgba(239,68,68,0.12);color:#ef4444;font-size:0.65rem" title="Players selling instantly (taking the low price)">Instant sells</span>
             </div>
             <div class="chart-wrap" style="height:220px">
                 <canvas id="volChart"></canvas>
@@ -244,8 +244,8 @@
                     <tr><td style="color:var(--text-secondary)">High Alch</td><td>${meta.highalch ? meta.highalch.toLocaleString() + ' gp' : '—'}</td></tr>
                     <tr><td style="color:var(--text-secondary)">Low Alch</td><td>${meta.lowalch ? meta.lowalch.toLocaleString() + ' gp' : '—'}</td></tr>
                     ${buyPrice && meta.highalch ? `<tr><td style="color:var(--text-secondary)">Alch Profit</td><td class="${meta.highalch - buyPrice - 250 > 0 ? 'positive' : 'negative'}">${(meta.highalch - buyPrice - 250).toLocaleString()} gp</td></tr>` : ''}
-                    ${buyPrice ? `<tr><td style="color:var(--text-secondary)">Buy Price</td><td>${buyPrice.toLocaleString()} gp</td></tr>` : ''}
-                    ${sellPrice ? `<tr><td style="color:var(--text-secondary)">Sell Price</td><td>${sellPrice.toLocaleString()} gp</td></tr>` : ''}
+                    ${buyPrice ? `<tr><td style="color:var(--text-secondary)">Instant Buy</td><td>${buyPrice.toLocaleString()} gp</td></tr>` : ''}
+                    ${sellPrice ? `<tr><td style="color:var(--text-secondary)">Instant Sell</td><td>${sellPrice.toLocaleString()} gp</td></tr>` : ''}
                 </table>
             `;
         }
@@ -457,7 +457,7 @@
                     labels,
                     datasets: [
                         {
-                            label: 'Buy Price',
+                            label: 'Instant Buy Price',
                             data: buy,
                             borderColor: '#22c55e',
                             backgroundColor: buyGrad,
@@ -473,7 +473,7 @@
                             borderWidth: 2.5
                         },
                         {
-                            label: 'Sell Price',
+                            label: 'Instant Sell Price',
                             data: sell,
                             borderColor: '#ef4444',
                             backgroundColor: sellGrad,
@@ -558,14 +558,14 @@
                     labels,
                     datasets: [
                         {
-                            label: 'Buy Volume',
+                            label: 'Instant Buys',
                             data: buyVols,
                             backgroundColor: 'rgba(34,197,94,0.45)',
                             borderRadius: { topLeft: 2, topRight: 2 },
                             stack: 'vol'
                         },
                         {
-                            label: 'Sell Volume',
+                            label: 'Instant Sells',
                             data: sellVols,
                             backgroundColor: 'rgba(239,68,68,0.4)',
                             borderRadius: 0,

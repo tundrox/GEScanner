@@ -277,7 +277,7 @@
                     <td style="text-align:right;color:var(--red)">${GE.fmtGp(r.tax)}</td>
                     <td style="text-align:right" class="${c}">${GE.fmtGp(r.margin)}</td>
                     <td style="text-align:right" class="${c}">${r.roi.toFixed(1)}%</td>
-                    <td style="text-align:right" title="${r.buyVol == null ? 'Daily volume unavailable' : `Yesterday: ${r.buyVol.toLocaleString()} instant sells (you buy) / ${r.sellVol.toLocaleString()} instant buys (you sell)`}">${r.buyVol == null ? '—' : `${GE.fmtGp(r.buyVol)} / ${GE.fmtGp(r.sellVol)}`}</td>
+                    <td style="text-align:right" title="${r.buyVol == null ? 'Daily volume unavailable' : `Yesterday: ${r.sellVol.toLocaleString()} instant buys (fill your sell offers) / ${r.buyVol.toLocaleString()} instant sells (fill your buy offers)`}">${r.buyVol == null ? '—' : `${GE.fmtGp(r.sellVol)} / ${GE.fmtGp(r.buyVol)}`}</td>
                     <td style="text-align:right">${r.limit ? r.limit.toLocaleString() : '—'}</td>
                     <td style="text-align:right" class="${r.limit ? c : ''}">${r.limit ? GE.fmtGp(r.ppl) : '—'}</td>
                 </tr>`;
@@ -285,7 +285,7 @@
             h += '</tbody></table></div>';
             h += `<div style="margin-top:12px;font-size:0.75rem;color:var(--text-muted)">Showing top ${top.length} of ${flipData.length} items`
                 + (flipHidden ? ` · ${flipHidden.toLocaleString()} hidden for trading too rarely or having old prices — loosen Min Daily Volume / Prices From to see them` : '')
-                + '. Vol/Day is yesterday\'s trades: how often you could buy / sell.</div>';
+                + '. Vol/Day is yesterday\'s instant buys / instant sells, the same as the item page\'s volume chart.</div>';
             document.getElementById('flipResults').innerHTML = h;
 
             document.querySelectorAll('#flipResults th[data-col]').forEach(th => {
