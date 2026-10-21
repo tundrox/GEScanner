@@ -347,70 +347,20 @@
 
         async function scan52Week(nowData, mapping) {
             try {
-                const cached = GE.load52WeekCache();
-                if (cached) {
-                    _52weekItems = [];
-                    cached.forEach(ci => {
-                        const meta = mapping[ci.id];
-                        if (!meta) return;
-                        const d = nowData[ci.id];
-                        const cur = d ? (d.avgHighPrice || d.avgLowPrice || 0) : 0;
-                        _52weekItems.push({ id: ci.id, meta, curPrice: cur, pts: ci.pts });
+                // Shared with Browse and cached across visits; only a first visit fetches each item's history
+                const history = await GE.getHighLowHistory((done, total) => {
+                    document.querySelectorAll('#highsCard .loading, #lowsCard .loading').forEach(el => {
+                        el.innerHTML = `<div class="spinner"></div>Scanning price history... ${done} / ${total}`;
                     });
-                    filter52Week(7);
-                    bindWeekTabs();
-                    return;
-                }
-
-                const ranked = [];
-                Object.keys(nowData).forEach(id => {
-                    const d = nowData[id];
-                    const meta = mapping[id];
-                    if (!meta || !d) return;
-                    const price = d.avgHighPrice || d.avgLowPrice || 0;
-                    const vol = (d.highPriceVolume || 0) + (d.lowPriceVolume || 0);
-                    if (price >= 200 && vol >= 20) ranked.push({ id, meta, curPrice: price, curVol: vol });
                 });
-                const highValue = [];
-                Object.keys(nowData).forEach(id => {
-                    const d = nowData[id];
-                    const meta = mapping[id];
-                    if (!meta || !d) return;
-                    const price = d.avgHighPrice || d.avgLowPrice || 0;
-                    if (price >= 100000 && !ranked.some(r => r.id === id)) {
-                        highValue.push({ id, meta, curPrice: price, curVol: (d.highPriceVolume || 0) + (d.lowPriceVolume || 0) });
-                    }
-                });
-                ranked.sort((a, b) => b.curVol - a.curVol);
-                const candidates = [...ranked.slice(0, 250), ...highValue];
-
-                const cacheEntries = [];
                 _52weekItems = [];
-                const BATCH = 10;
-
-                for (let i = 0; i < candidates.length; i += BATCH) {
-                    const batch = candidates.slice(i, i + BATCH);
-                    const results = await Promise.all(
-                        batch.map(async item => {
-                            try {
-                                const ts = await GE.getTimeseries(item.id, '24h');
-                                return { item, data: ts.data || [] };
-                            } catch { return { item, data: [] }; }
-                        })
-                    );
-
-                    results.forEach(({ item, data }) => {
-                        if (data.length < 30) return;
-                        const pts = [];
-                        data.forEach(d => { if (d.avgHighPrice) pts.push([d.timestamp, d.avgHighPrice]); });
-                        if (pts.length < 30) return;
-                        _52weekItems.push({ id: item.id, meta: item.meta, curPrice: item.curPrice, pts });
-                        cacheEntries.push({ id: item.id, pts });
-                    });
-                    await new Promise(r => setTimeout(r, 200));
-                }
-
-                GE.save52WeekCache(cacheEntries);
+                Object.keys(history).forEach(id => {
+                    const meta = mapping[id];
+                    const d = nowData[id];
+                    const cur = d ? (d.avgHighPrice || d.avgLowPrice || 0) : 0;
+                    if (!meta || !cur) return;      // no trades this hour, so nothing to compare
+                    _52weekItems.push({ id, meta, curPrice: cur, pts: history[id] });
+                });
                 filter52Week(7);
                 bindWeekTabs();
 

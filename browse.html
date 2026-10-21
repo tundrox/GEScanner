@@ -216,78 +216,21 @@
         }
 
         async function load52WeekData() {
-            if (_viewCache['52week']) {
-                currentPage = 1;
-                applyFilters();
-                return;
-            }
+            if (!_viewCache['52week']) {
+                // Price history shared with the dashboard and cached across visits
+                const status = document.getElementById('viewStatus');
+                status.style.display = '';
+                status.innerHTML = `<div class="card"><div class="loading"><div class="spinner"></div><span id="weekProgressText">Loading price history...</span><div style="margin-top:12px;background:rgba(255,255,255,0.06);border-radius:8px;height:6px;overflow:hidden"><div id="weekProgress" style="height:100%;background:rgba(255,255,255,0.6);border-radius:8px;width:0;transition:width 0.3s"></div></div></div></div>`;
 
-            // Check sessionStorage for cached price points
-            const cached = GE.load52WeekCache();
-            if (cached) {
-                cached.forEach(ci => {
-                    const idx = allItems.findIndex(a => String(a.id) === String(ci.id));
-                    if (idx !== -1) allItems[idx].pts = ci.pts;
+                const history = await GE.getHighLowHistory((done, total) => {
+                    document.getElementById('weekProgressText').textContent = `Scanning ${done} / ${total} items for price history...`;
+                    document.getElementById('weekProgress').style.width = Math.round((done / total) * 100) + '%';
                 });
+                allItems.forEach(i => { if (history[i.id]) i.pts = history[i.id]; });
+
                 _viewCache['52week'] = true;
-                currentPage = 1;
-                applyFilters();
-                return;
+                status.style.display = 'none';
             }
-
-            const status = document.getElementById('viewStatus');
-            status.style.display = '';
-
-            const byVolume = allItems
-                .filter(i => i.price >= 200 && i.vol >= 20)
-                .sort((a, b) => b.vol - a.vol)
-                .slice(0, 250);
-            const highValue = allItems
-                .filter(i => i.price >= 100000 && !byVolume.some(v => v.id === i.id));
-            const ranked = [...byVolume, ...highValue];
-
-            const BATCH = 10;
-            let done = 0;
-            const cacheEntries = [];
-
-            status.innerHTML = `<div class="card"><div class="loading"><div class="spinner"></div>Scanning 0 / ${ranked.length} items for price history...<div style="margin-top:12px;background:rgba(255,255,255,0.06);border-radius:8px;height:6px;overflow:hidden"><div id="weekProgress" style="height:100%;background:rgba(255,255,255,0.6);border-radius:8px;width:0;transition:width 0.3s"></div></div></div></div>`;
-
-            for (let i = 0; i < ranked.length; i += BATCH) {
-                const batch = ranked.slice(i, i + BATCH);
-                const results = await Promise.all(
-                    batch.map(async item => {
-                        try {
-                            const ts = await GE.getTimeseries(item.id, '24h');
-                            return { item, data: ts.data || [] };
-                        } catch { return { item, data: [] }; }
-                    })
-                );
-
-                results.forEach(({ item, data }) => {
-                    if (data.length < 30) return;
-                    // Keep only valid price points as compact [timestamp, avgHighPrice] pairs
-                    const pts = [];
-                    data.forEach(d => { if (d.avgHighPrice) pts.push([d.timestamp, d.avgHighPrice]); });
-                    if (pts.length < 30) return;
-
-                    const idx = allItems.findIndex(a => a.id === item.id);
-                    if (idx === -1) return;
-                    allItems[idx].pts = pts;
-                    cacheEntries.push({ id: item.id, pts });
-                });
-
-                done += batch.length;
-                const pct = Math.round((done / ranked.length) * 100);
-                const prog = document.getElementById('weekProgress');
-                if (prog) prog.style.width = pct + '%';
-                await new Promise(r => setTimeout(r, 200));
-            }
-
-            // Save to sessionStorage for other pages
-            GE.save52WeekCache(cacheEntries);
-
-            _viewCache['52week'] = true;
-            status.style.display = 'none';
             currentPage = 1;
             applyFilters();
         }

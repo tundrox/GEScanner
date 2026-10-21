@@ -38,12 +38,19 @@ const GE = {
         }
 
         // 3. Network fetch
-        const res = await fetch(url);
-        if (!res.ok) throw new Error(`API ${res.status}`);
-        const data = await res.json();
+        const data = await this._getJson(endpoint, params);
         this._cache[key] = { d: data, t: Date.now() };
         this._ssSet(key, data);
         return data;
+    },
+
+    // Plain request with no caching, for responses too big or too many to keep in sessionStorage
+    async _getJson(endpoint, params = {}) {
+        const url = new URL(this.BASE + endpoint);
+        Object.entries(params).forEach(([k, v]) => url.searchParams.set(k, v));
+        const res = await fetch(url);
+        if (!res.ok) throw new Error(`API ${res.status}`);
+        return res.json();
     },
 
     async getMapping() {
@@ -315,24 +322,142 @@ const GE = {
         return Math.min(365, Math.ceil((days * 24) / hoursPerStep[timestep]));
     },
 
-    // --- High/Low scan cache (survives page navigation) ---
-    // v2 stores compact price points per item: { id, pts: [[timestamp, avgHighPrice], ...] }
-    // so each page can compute the high/low over whatever lookback window is selected.
-    save52WeekCache(data) {
-        try {
-            sessionStorage.setItem('ge_52week_v2', JSON.stringify({ d: data, t: Date.now() }));
-        } catch (e) { /* quota */ }
+    // --- Price history for the highs/lows views (dashboard Price Extremes, Browse Highs/Lows) ---
+    // A year of daily average buy prices for the items that really trade, kept in localStorage so every tab
+    // and both pages share it. Daily prices only change once a day, so a browser fetches each item's history
+    // once (~185 requests, paced and saved as it goes, so leaving the page mid-scan loses nothing); after that
+    // a new UTC day costs one /24h snapshot (every item at once) plus a timeseries request for the few items
+    // that newly qualify.
+    // Stored as { day, partial, retryAt, s: { id: [price per day, oldest first, 0 = no trades] } },
+    // where `day` is the timestamp of the last entry.
+    HL_KEY: 'ge_highlow_v3',
+    HL_DAYS: 365,                  // length of the API's 24h timeseries
+    HL_TOP_GP: 150,                // the items with the most gp traded yesterday...
+    HL_TOP_VOL: 50,                // ...plus the most units traded
+    HL_MIN_VOL: 24,                // ~one trade an hour, or a daily average is just a few odd trades
+    HL_BATCH: 5,                   // timeseries requests at a time, one batch a second (bursts get 502s)
+    HL_RETRY: 2 * 60 * 1000,       // wait after a failed request before trying again
+    HL_RECHECK: 15 * 60 * 1000,    // wait after finding yesterday isn't published yet
+
+    // { id: [[timestamp_sec, avgHighPrice], ...] } for every candidate with 30+ days of trades, the shape
+    // GE.windowExtreme takes. onProgress(done, total) follows the per-item requests when there are any.
+    getHighLowHistory(onProgress) {
+        // One load at a time: switching views mid-scan waits for the scan already running
+        if (!this._hlPending) this._hlPending = this._hlGet(onProgress).finally(() => { this._hlPending = null; });
+        return this._hlPending;
     },
-    load52WeekCache() {
-        try {
-            const raw = sessionStorage.getItem('ge_52week_v2');
-            if (!raw) return null;
-            const p = JSON.parse(raw);
-            // Scan data valid for 15 minutes
-            if (Date.now() - p.t < 15 * 60 * 1000) return p.d;
-            sessionStorage.removeItem('ge_52week_v2');
-        } catch (e) { /* ignore */ }
-        return null;
+
+    async _hlGet(onProgress) {
+        const DAY = 86400;
+        const latestDay = Math.floor(Date.now() / 1000 / DAY) * DAY - DAY;   // yesterday 00:00 UTC, the newest full day
+        let store = this._hlLoad();
+        const stale = !store || store.day < latestDay || store.partial;
+        if (stale && !(store && Date.now() < store.retryAt)) {
+            try {
+                store = await this._hlRefresh(store, latestDay, onProgress);
+            } catch (e) {
+                store = this._hlLoad();
+                if (!store) throw e;
+                store.retryAt = Date.now() + this.HL_RETRY;     // keep showing the older data; try again later
+                this._hlSave(store);
+            }
+        }
+        const start = store.day - (this.HL_DAYS - 1) * DAY;
+        const out = {};
+        Object.keys(store.s).forEach(id => {
+            const pts = [];
+            store.s[id].forEach((p, k) => { if (p) pts.push([start + k * DAY, p]); });
+            if (pts.length >= 30) out[id] = pts;
+        });
+        return out;
+    },
+
+    async _hlRefresh(store, latestDay, onProgress) {
+        const DAY = 86400;
+        // Newest published daily snapshot (same request and cache as the Trading page's GE.getDaily)
+        let day = latestDay;
+        let snap = (await this.fetch('/24h', { timestamp: day })).data || {};
+        if (!Object.keys(snap).length) {
+            day -= DAY;                         // yesterday isn't published yet
+            if (store && store.day === day && !store.partial) {
+                store.retryAt = Date.now() + this.HL_RECHECK;
+                this._hlSave(store);
+                return store;
+            }
+            snap = (await this.fetch('/24h', { timestamp: day })).data || {};
+            if (!Object.keys(snap).length) throw new Error('No daily prices published');
+        }
+        if (store && (store.day > day || day - store.day > 7 * DAY)) store = null;    // too far behind: start over
+
+        // Bring stored items up to date from the daily snapshots
+        const snaps = { [day]: snap };
+        const series = {};
+        if (store) {
+            for (let t = store.day + DAY; t < day; t += DAY) snaps[t] = (await this._getJson('/24h', { timestamp: t })).data || {};
+            const shift = (day - store.day) / DAY;
+            Object.keys(store.s).forEach(id => {
+                const s = store.s[id].slice(shift);
+                for (let t = store.day + DAY; t <= day; t += DAY) s.push(this._hlPrice(snaps[t], id));
+                series[id] = s;
+            });
+        }
+
+        // Fetch a year of history for candidates we don't have yet, a few at a time
+        const ids = this._hlCandidates(snap, await this.getMapping());
+        const missing = ids.filter(id => !series[id]);
+        const start = day - (this.HL_DAYS - 1) * DAY;
+        const save = (partial, retryAt) => {
+            const s = {};
+            ids.forEach(id => { if (series[id]) s[id] = series[id]; });
+            store = { day, partial, retryAt, s };
+            this._hlSave(store);
+        };
+        const BATCH = this.HL_BATCH;
+        let failed = false;
+        for (let i = 0; i < missing.length && !failed; i += BATCH) {
+            if (i) await new Promise(r => setTimeout(r, 1000));
+            const batch = missing.slice(i, i + BATCH);
+            const results = await Promise.all(batch.map(id =>
+                this._getJson('/timeseries', { id, timestep: '24h' }).catch(() => null)));
+            results.forEach((ts, k) => {
+                if (!ts) { failed = true; return; }    // likely rate-limited: stop, keep what we have, retry later
+                const id = batch[k];
+                const s = new Array(this.HL_DAYS).fill(0);
+                (ts.data || []).forEach(p => {
+                    const n = Math.round((p.timestamp - start) / DAY);
+                    if (n >= 0 && n < this.HL_DAYS && p.avgHighPrice) s[n] = p.avgHighPrice;
+                });
+                // A timeseries can trail the snapshots by a day; fill the gap from them
+                Object.keys(snaps).forEach(t => { const n = (t - start) / DAY; if (!s[n]) s[n] = this._hlPrice(snaps[t], id); });
+                series[id] = s;
+            });
+            if (onProgress) onProgress(Math.min(i + BATCH, missing.length), missing.length);
+            if (!failed && i + BATCH < missing.length) save(true, 0);   // progress so far; the next page carries on
+        }
+        save(failed, failed ? Date.now() + this.HL_RETRY : 0);
+        return store;
+    },
+
+    // Items with real trading on the snapshot's day: top by gp traded, plus top by units traded
+    _hlCandidates(snap, mapping) {
+        const rows = [];
+        Object.keys(snap).forEach(id => {
+            const d = snap[id];
+            if (!mapping[id]) return;
+            const price = d.avgHighPrice || d.avgLowPrice || 0;
+            const vol = (d.highPriceVolume || 0) + (d.lowPriceVolume || 0);
+            if (price >= 200 && vol >= this.HL_MIN_VOL) rows.push({ id, gp: price * vol, vol });
+        });
+        const ids = new Set(rows.sort((a, b) => b.gp - a.gp).slice(0, this.HL_TOP_GP).map(r => r.id));
+        rows.sort((a, b) => b.vol - a.vol).slice(0, this.HL_TOP_VOL).forEach(r => ids.add(r.id));
+        return [...ids];
+    },
+    _hlPrice(snap, id) { return (snap[id] && snap[id].avgHighPrice) || 0; },
+    _hlLoad() {
+        try { return JSON.parse(localStorage.getItem(this.HL_KEY)); } catch (e) { return null; }
+    },
+    _hlSave(store) {
+        try { localStorage.setItem(this.HL_KEY, JSON.stringify(store)); } catch (e) { /* quota */ }
     },
 
     // Highest/lowest avgHighPrice (and when) within the last `periodDays` of a point series.
