@@ -161,7 +161,14 @@
 
         async function switchView() {
             const view = document.getElementById('viewMode').value;
-            const period = parseInt(document.getElementById('periodSelect').value);
+            // Highs/lows come from daily prices whose newest point is always over a day old,
+            // so a 24H window is always empty there
+            const periodSel = document.getElementById('periodSelect');
+            const opt24h = periodSel.querySelector('option[value="1"]');
+            const highLow = view === '52high' || view === '52low';
+            opt24h.hidden = opt24h.disabled = highLow;
+            if (highLow && periodSel.value === '1') periodSel.value = '7';
+            const period = parseInt(periodSel.value);
             _currentView = view;
 
 

@@ -325,7 +325,7 @@ const GE = {
     // --- Price history for the highs/lows views (dashboard Price Extremes, Browse Highs/Lows) ---
     // A year of daily average buy prices for the items that really trade, kept in localStorage so every tab
     // and both pages share it. Daily prices only change once a day, so a browser fetches each item's history
-    // once (~185 requests, paced and saved as it goes, so leaving the page mid-scan loses nothing); after that
+    // once (~260 requests, paced and saved as it goes, so leaving the page mid-scan loses nothing); after that
     // a new UTC day costs one /24h snapshot (every item at once) plus a timeseries request for the few items
     // that newly qualify.
     // Stored as { day, partial, retryAt, s: { id: [price per day, oldest first, 0 = no trades] } },
@@ -335,6 +335,7 @@ const GE = {
     HL_TOP_GP: 150,                // the items with the most gp traded yesterday...
     HL_TOP_VOL: 50,                // ...plus the most units traded
     HL_MIN_VOL: 24,                // ~one trade an hour, or a daily average is just a few odd trades
+    HL_RARE_PRICE: 10000000,       // ...plus anything worth 10M+ that trades at all (rare, expensive items)
     HL_BATCH: 5,                   // timeseries requests at a time, one batch a second (bursts get 502s)
     HL_RETRY: 2 * 60 * 1000,       // wait after a failed request before trying again
     HL_RECHECK: 15 * 60 * 1000,    // wait after finding yesterday isn't published yet
@@ -403,7 +404,7 @@ const GE = {
         }
 
         // Fetch a year of history for candidates we don't have yet, a few at a time
-        const ids = this._hlCandidates(snap, await this.getMapping());
+        const ids = this._hlCandidates(snap, await this.getMapping(), series);
         const missing = ids.filter(id => !series[id]);
         const start = day - (this.HL_DAYS - 1) * DAY;
         const save = (partial, retryAt) => {
@@ -438,18 +439,28 @@ const GE = {
         return store;
     },
 
-    // Items with real trading on the snapshot's day: top by gp traded, plus top by units traded
-    _hlCandidates(snap, mapping) {
+    // Items with real trading on the snapshot's day: top by gp traded, plus top by units traded,
+    // plus every 10M+ item that traded at all. 10M+ items already stored stay through days without
+    // a trade, so rare items aren't dropped and re-downloaded every time they have a quiet day.
+    _hlCandidates(snap, mapping, stored) {
         const rows = [];
+        const ids = new Set();
         Object.keys(snap).forEach(id => {
             const d = snap[id];
             if (!mapping[id]) return;
             const price = d.avgHighPrice || d.avgLowPrice || 0;
             const vol = (d.highPriceVolume || 0) + (d.lowPriceVolume || 0);
             if (price >= 200 && vol >= this.HL_MIN_VOL) rows.push({ id, gp: price * vol, vol });
+            if (price >= this.HL_RARE_PRICE && vol > 0) ids.add(id);
         });
-        const ids = new Set(rows.sort((a, b) => b.gp - a.gp).slice(0, this.HL_TOP_GP).map(r => r.id));
+        rows.sort((a, b) => b.gp - a.gp).slice(0, this.HL_TOP_GP).forEach(r => ids.add(r.id));
         rows.sort((a, b) => b.vol - a.vol).slice(0, this.HL_TOP_VOL).forEach(r => ids.add(r.id));
+        Object.keys(stored || {}).forEach(id => {
+            const s = stored[id];
+            let last = 0;
+            for (let k = s.length - 1; k >= 0 && !last; k--) last = s[k];
+            if (last >= this.HL_RARE_PRICE && mapping[id]) ids.add(id);
+        });
         return [...ids];
     },
     _hlPrice(snap, id) { return (snap[id] && snap[id].avgHighPrice) || 0; },
