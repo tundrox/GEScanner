@@ -74,7 +74,7 @@
         .mg-sources { font-size: 0.7rem; color: var(--text-muted); line-height: 1.7; }
         .mg-sources a { color: var(--text-secondary); }
 
-        @media (max-width: 900px) {
+        @media (max-width: 1000px) {
             .mg-tables { grid-template-columns: minmax(0, 1fr); }
         }
         @media (max-width: 600px) {
@@ -1169,7 +1169,9 @@
 
         function itemCell(name, note) {
             const it = itemFor(name);
-            const icon = it ? GE.imgTag(it, 22) : `<span class="item-icon-fallback" style="width:22px;height:22px">${esc(name[0])}</span>`;
+            // Coins aren't a GE item, so there's no local icon; use the wiki's
+            const icon = it ? GE.imgTag(it, 22) : name === 'Coins' ? `<img src="${GE.WIKI_IMG}Coins_10000.png" width="22" height="22" class="item-icon" loading="lazy" alt="">`
+                : `<span class="item-icon-fallback" style="width:22px;height:22px">${esc(name[0])}</span>`;
             const label = it ? `<a href="item.html?id=${it.id}">${esc(name)}</a>` : esc(name);
             return `<div class="item-cell">${icon}<span class="item-name">${label}</span>${note ? `<span class="tag-sm">${note}</span>` : ''}${GE.wikiLink(it ? it.name : name.replace(/#.*/, ''))}</div>`;
         }
