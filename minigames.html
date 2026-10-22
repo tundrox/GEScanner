@@ -238,7 +238,8 @@
         //   { xp: { skill: xp }, loot: [[item, qty]], cost: [[item, qty]], fees: [[label, gp]], gp, rate }
         // where rate is units per hour. c.v holds the inputs, c.rate(L) the units per hour.
         const BF = D.blastFurnace, CB = D.cannonballs, GF = D.giantsFoundry, SG = D.superglass, WT = D.wintertodt,
-            TP = D.tempoross, GR = D.guardians, ML = D.motherlode, BH = D.birdhouses, HB = D.herbiboar, TF = D.titheFarm, ZA = D.zalcano;
+            TP = D.tempoross, GR = D.guardians, ML = D.motherlode, BH = D.birdhouses, HB = D.herbiboar, TF = D.titheFarm, ZA = D.zalcano,
+            PP = D.pickpocketing, ZM = D.zmi, HS = D.sepulchre, BM = D.blastMine;
 
         // Giants' Foundry (Module:Giants' Foundry Calculator)
         const gfXp = q => (Math.floor(q * q / 73) + Math.floor(1.5 * q) + 1) * 30;
@@ -706,6 +707,102 @@
                 }
             },
             {
+                key: 'pickpocketing', name: 'Pickpocketing', skill: 'thieving', min: PP.npcs[0].level, icon: 'Ranarr seed', units: ['pickpocket', 'pickpockets'], data: PP,
+                inputs: [
+                    { id: 'npc', label: 'Pickpocket', type: 'select', def: 'Master Farmer', options: () => PP.npcs.map(n => [n.name, `${n.name} (level ${n.level})`]) },
+                    { id: 'gear', label: 'Success boost', type: 'select', def: 'Normal', options: v => ppNpc(v).chart.map(g => [g.label, g.label === 'Normal' ? 'None' : g.label + (g.req > ppNpc(v).level ? ` (level ${g.req})` : '')]) },
+                    { id: 'rogue', label: 'Rogue outfit', type: 'check', def: true, text: 'Full rogue outfit (double loot)' },
+                    { id: 'farming', label: 'Farming level (herb seeds)', type: 'level', skill: 'farming', def: 85, show: v => ppNpc(v).name === 'Master Farmer' },
+                    { id: 'rate', label: 'Successful pickpockets per hour', type: 'rate', auto: c => ppNpc(c.v).perHour,
+                        hint: c => `From the wiki's money making guide, written for high levels with ${ppNpc(c.v).name === 'Vyre' ? 'few' : 'no'} failures; lower it if you fail often` }
+                ],
+                unit(L, c) {
+                    const n = ppNpc(c.v), double = c.v.rogue ? 2 : 1;
+                    const special = (PP.herbChance.base + Math.min(PP.herbChance.cap, c.lvl('farming'))) / 1000;
+                    const loot = n.loot.map(l => {
+                        let p = l.p;
+                        const herb = n.name === 'Master Farmer' && PP.herbSeeds.find(s => s.item === l.item);
+                        if (herb) p = PP.herbTable * (herb.item === 'Guam seed' ? herb.num / herb.den + PP.guamExtra / 1000 - special : herb.num / herb.den * special);
+                        return [l.item, p * avg(l) * (l.item === 'Rocky' ? 1 : double)];
+                    });
+                    return { xp: { thieving: n.xp }, loot, rate: c.rate(L) };
+                },
+                stats: (sim, c) => {
+                    const n = ppNpc(c.v), g = n.chart.find(x => x.label === c.v.gear) || n.chart[0];
+                    const p = interp(g.low, g.high, c.level);
+                    return [['Success chance', (p * 100).toFixed(1) + '%', `at ${c.level} Thieving · stun ${n.stun}, ${n.damage} damage on a fail`]];
+                },
+                notes: c => {
+                    const n = ppNpc(c.v), g = n.chart.find(x => x.label === c.v.gear) || n.chart[0], out = [];
+                    if (c.level < n.level) out.push(`<span class="warn">${esc(n.name)}s need ${n.level} Thieving.</span>`);
+                    if (c.level < g.req) out.push(`<span class="warn">${esc(g.label)} needs level ${g.req}.</span>`);
+                    out.push(`${n.xp} Thieving XP per successful pickpocket. The success chance follows the wiki's chart for your level and boost; failures cost time and food, which isn't counted.`);
+                    if (n.name === 'Master Farmer') out.push('Ranarr, snapdragon and torstol seeds get more likely with Farming level, up to 85 (the wiki calculator\'s formula).');
+                    out.push('The full rogue outfit doubles the loot (coin pouches pay their coins twice).');
+                    return out;
+                }
+            },
+            {
+                key: 'zmi', name: 'Ourania Altar (ZMI)', skill: 'runecrafting', min: 1, icon: 'Blood rune', units: ['essence', 'essence'], data: ZM,
+                inputs: [
+                    { id: 'essence', label: 'Essence', type: 'select', def: 'Pure essence', options: () => [['Pure essence', 'Pure essence'], ['Daeyalt essence', `Daeyalt essence (${ZM.daeyalt}× XP)`]] },
+                    { id: 'raiments', label: 'Raiments of the Eye', type: 'select', def: '0', options: () => [0, 1, 2, 3, 4].map(n => [String(n), n === 0 ? 'None' : n === 4 ? 'Full set (+60% runes)' : `${n} piece${n > 1 ? 's' : ''} (+${n * 10}% runes)`]) },
+                    { id: 'lantern', label: 'Abyssal lantern', type: 'select', def: 'None', options: () => [['None', 'None']].concat(Object.entries(ZM.lantern).map(([k, l]) => [k, `${k} logs (+${Math.round((l.mult - 1) * 100)}% ${l.rune ? l.rune.toLowerCase() + 's' : 'runes'})`])) },
+                    { id: 'diary', label: 'Ardougne diary', type: 'check', def: false, text: 'Medium Ardougne diary (more runes)' },
+                    { id: 'trip', label: 'Trip costs', type: 'check', def: true, text: 'Banking runes, teleports and stamina' },
+                    { id: 'rate', label: 'Essence per hour', type: 'rate', auto: () => ZM.perHour, hint: () => 'From the wiki\'s money making guide (70+ Runecraft)' }
+                ],
+                unit(L, c) {
+                    const band = ZM.bands[L >= 99 ? 10 : Math.floor(L / 10)];
+                    const r = +c.v.raiments || 0;
+                    const loot = ZM.runes.map((rune, i) => {
+                        const lan = ZM.lantern[c.v.lantern];
+                        const mult = (1 + (c.v.diary ? rune.diary / 100 : 0) + r / 10 + (r === 4 ? 0.2 : 0)) * (lan && (!lan.rune || lan.rune === rune.rune) ? lan.mult : 1);
+                        return [rune.rune, band[i + 1] * mult];
+                    });
+                    const cost = [[c.v.essence, 1]].concat(c.v.trip ? ZM.tripCosts : []);
+                    return { xp: { runecrafting: band[0] * (c.v.essence === 'Daeyalt essence' ? ZM.daeyalt : 1) }, loot, cost, rate: c.rate(L) };
+                },
+                notes: () => ['XP and the rune mix per essence come from the wiki calculator, in bands of 10 levels (99 is its own). The diary, the Raiments of the Eye and the abyssal lantern add runes but no XP.',
+                    'Trip costs are the money making guide\'s per-essence figures (runes paid to the banker, the Ourania Teleport, stamina potions).']
+            },
+            {
+                key: 'sepulchre', name: 'Hallowed Sepulchre', skill: 'agility', min: HS.floors[0].level, icon: 'Strange old lockpick (full)', units: ['run', 'runs'], data: HS,
+                inputs: [
+                    { id: 'floor', label: 'Down to floor', type: 'select', def: '5', options: () => HS.floors.map(f => [String(f.floor), `Floor ${f.floor} (level ${f.level})`]) },
+                    { id: 'loot', label: 'Coffins', type: 'check', def: true, text: 'Loot the coffins worth looting', show: v => +v.floor >= 3 },
+                    { id: 'rate', label: 'Runs per hour', type: 'rate', auto: c => { const f = hsFloor(c.v); return f.perHour && c.v.loot ? f.perHour : Math.round(f.xpH / f.total * 10) / 10; },
+                        hint: c => { const f = hsFloor(c.v); return f.perHour && c.v.loot ? 'From the wiki\'s money making guide for this floor' : `The wiki's ${f.xpH.toLocaleString()} XP an hour without looting ÷ ${f.total.toLocaleString()} XP a run`; } }
+                ],
+                unit(L, c) {
+                    const f = hsFloor(c.v), looting = c.v.loot && f.loot;
+                    return { xp: { agility: f.total }, loot: looting ? Object.entries(f.loot) : [], cost: looting ? Object.entries(f.cost) : [], rate: c.rate(L) };
+                },
+                notes: c => {
+                    const f = hsFloor(c.v), out = [];
+                    if (c.level < f.level) out.push(`<span class="warn">Floor ${f.floor} needs ${f.level} Agility.</span>`);
+                    out.push(`A run to floor ${f.floor} gives ${f.total.toLocaleString()} Agility XP (the floors' XP added up); the wiki's realistic rates are ${f.lootXpH.toLocaleString()} an hour looting and ${f.xpH.toLocaleString()} without.`);
+                    if (f.loot) out.push(`Loot and supplies per run are the money making guide's for floor ${f.floor} (coffins need ${HS.thieving} Thieving). Hallowed marks are shown as a count; Thieving XP from coffins isn't counted.`);
+                    else out.push('The wiki says looting floors 1 and 2 isn\'t worth it, so there\'s no loot here.');
+                    return out;
+                }
+            },
+            {
+                key: 'blastMine', name: 'Blast mine', skill: 'mining', min: BM.minLevel, icon: 'Dynamite', units: ['dynamite', 'dynamite'], data: BM,
+                inputs: [
+                    { id: 'rate', label: 'Dynamite per hour', type: 'rate', auto: () => BM.perHour, hint: () => 'The Blast mine page\'s assumption' }
+                ],
+                unit(L, c) {
+                    // XP per dynamite from the page's hourly rates at its own pace
+                    return { xp: { mining: between(BM.xpPerHour, L) / BM.perHour, firemaking: BM.fmPerHour / BM.perHour }, loot: BM.ores, cost: [['Dynamite', 1]], rate: c.rate(L) };
+                },
+                notes: c => [
+                    (c.level < BM.minLevel ? `<span class="warn">Blast mining needs ${BM.minLevel} Mining.</span> ` : '')
+                    + `The page gives about ${BM.xpPerHour[0][1].toLocaleString()} Mining XP an hour at level ${BM.xpPerHour[0][0]} and ${BM.xpPerHour[1][1].toLocaleString()} at 99 (${BM.perHour} dynamite an hour); levels between are interpolated${c.level < BM.xpPerHour[0][0] ? ', and below ' + BM.xpPerHour[0][0] + ' the level ' + BM.xpPerHour[0][0] + ' rate is used, so it\'s optimistic' : ''}.`,
+                    'Ores per dynamite are the money making guide\'s averages for a high-level player; lower levels get fewer high-tier ores.'
+                ]
+            },
+            {
                 key: 'zalcano', name: 'Zalcano', skill: null, icon: 'Crystal tool seed', units: ['kill', 'kills'], data: ZA,
                 inputs: [
                     { id: 'basis', label: 'Loot quantities', type: 'select', def: 'guide', options: () => [['guide', 'Money making guide average (team kills)'], ['lo', 'Low end of the drop ranges'], ['mid', 'Middle of the drop ranges'], ['hi', 'High end (top contribution)']] },
@@ -732,6 +829,8 @@
             }
         ];
         function bfBar(v) { return BF.bars.find(b => b.name === v.bar) || BF.bars[0]; }
+        function ppNpc(v) { return PP.npcs.find(n => n.name === v.npc) || PP.npcs[0]; }
+        function hsFloor(v) { return HS.floors.find(f => String(f.floor) === String(v.floor)) || HS.floors[HS.floors.length - 1]; }
         function sgMethod(v) { return SG.methods.find(m => m.key === v.method) || SG.methods[0]; }
 
         // ---------- State ----------
@@ -817,7 +916,7 @@
                 if (inp.show && !inp.show(v)) return '';
                 const id = 'in_' + inp.id;
                 if (inp.type === 'select') {
-                    return `<label class="calc-field"><span>${esc(inp.label)}</span><select id="${id}" data-in="${inp.id}">${inp.options().map(([val, text]) =>
+                    return `<label class="calc-field"><span>${esc(inp.label)}</span><select id="${id}" data-in="${inp.id}">${inp.options(v).map(([val, text]) =>
                         `<option value="${esc(val)}"${String(v[inp.id]) === String(val) ? ' selected' : ''}>${esc(text)}</option>`).join('')}</select></label>`;
                 }
                 if (inp.type === 'check') {
