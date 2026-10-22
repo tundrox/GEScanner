@@ -239,7 +239,7 @@
         // where rate is units per hour. c.v holds the inputs, c.rate(L) the units per hour.
         const BF = D.blastFurnace, CB = D.cannonballs, GF = D.giantsFoundry, SG = D.superglass, WT = D.wintertodt,
             TP = D.tempoross, GR = D.guardians, ML = D.motherlode, BH = D.birdhouses, HB = D.herbiboar, TF = D.titheFarm, ZA = D.zalcano,
-            PP = D.pickpocketing, ZM = D.zmi, HS = D.sepulchre, BM = D.blastMine;
+            PP = D.pickpocketing, ZM = D.zmi, HS = D.sepulchre, BM = D.blastMine, VT = D.valeTotems, PL = D.pyramidPlunder, HE = D.hespori;
 
         // Giants' Foundry (Module:Giants' Foundry Calculator)
         const gfXp = q => (Math.floor(q * q / 73) + Math.floor(1.5 * q) + 1) * 30;
@@ -801,6 +801,89 @@
                     + `The page gives about ${BM.xpPerHour[0][1].toLocaleString()} Mining XP an hour at level ${BM.xpPerHour[0][0]} and ${BM.xpPerHour[1][1].toLocaleString()} at 99 (${BM.perHour} dynamite an hour); levels between are interpolated${c.level < BM.xpPerHour[0][0] ? ', and below ' + BM.xpPerHour[0][0] + ' the level ' + BM.xpPerHour[0][0] + ' rate is used, so it\'s optimistic' : ''}.`,
                     'Ores per dynamite are the money making guide\'s averages for a high-level player; lower levels get fewer high-tier ores.'
                 ]
+            },
+            {
+                key: 'valeTotems', name: 'Vale Totems', skill: 'fletching', min: VT.logs[0].level, icon: 'Redwood logs', units: ['totem', 'totems'], data: VT,
+                inputs: [
+                    { id: 'log', label: 'Logs', type: 'select', def: 'auto', options: () => [['auto', 'Best for my Fletching level']].concat(VT.logs.map(l => [l.type, `${l.log} (level ${l.level})`])) },
+                    { id: 'decs', label: 'Decorations per totem', type: 'select', def: '4', options: () => [0, 1, 2, 3, 4].map(n => [String(n), String(n)]) },
+                    { id: 'deco', label: 'Decoration', type: 'select', def: 'auto', options: v => [['auto', 'Most XP for my level']].concat(VT.decorations.filter(d => v.log === 'auto' || d.type === v.log).map(d => [d.item, `${d.item} (level ${d.level})`])) },
+                    { id: 'fletch', label: 'Decorations', type: 'check', def: true, text: 'Fletch them myself (more XP)' },
+                    { id: 'points', label: 'Research points', type: 'check', def: true, text: `Spend them on ent branches (${VT.branchPoints} points each)` },
+                    { id: 'rate', label: 'Totems per hour', type: 'rate', auto: () => VT.perHour, hint: () => 'The strategy guide\'s standard (13 loops of 8 totems)' }
+                ],
+                unit(L, c) {
+                    const log = c.v.log === 'auto' ? VT.logs.filter(l => l.level <= L).pop() || VT.logs[0] : VT.logs.find(l => l.type === c.v.log);
+                    const dec = +c.v.decs || 0;
+                    const options = VT.decorations.filter(d => d.type === log.type);
+                    const deco = (c.v.deco !== 'auto' && options.find(d => d.item === c.v.deco))
+                        || options.filter(d => d.level <= L).sort((a, b) => b.xp - a.xp)[0] || options[0];
+                    const xp = log.baseXp * 4 + dec * log.perXp + (c.v.fletch ? dec * deco.xp : 0);
+                    const offerings = VT.offerings[VT.logs.indexOf(log)][dec] * log.visits;
+                    const rummages = offerings / VT.perPoint;
+                    const loot = [];
+                    for (const r of VT.rummage) {
+                        if (r.from != null && (L < r.from || L > r.to)) continue;
+                        const q = r.nest ? (L >= VT.twoNestsAt ? 2 : 1) : avg(r);
+                        loot.push([r.item.replace(/^Bird nest \(egg\)#(\w+) egg$/, (m, colour) => `Bird nest (${colour.toLowerCase()} egg)`), rummages * r.p * q]);
+                    }
+                    if (c.v.points) loot.push(['Ent branch', rummages / VT.branchPoints]);
+                    const cost = [[log.log, 1 + (c.v.fletch ? dec * deco.logs : 0)]];
+                    if (c.v.fletch && deco.string && dec) cost.push(['Bow string', dec]);
+                    if (!c.v.fletch && dec) cost.push([deco.item, dec]);
+                    return { xp: { fletching: xp }, loot, cost, rate: c.rate(L), extra: { offerings, points: rummages } };
+                },
+                stats: sim => [['Research points', Math.floor(sim.extra.points).toLocaleString(), `${Math.round(sim.extra.offerings).toLocaleString()} offerings`]],
+                notes: c => {
+                    const out = [];
+                    if (c.v.log !== 'auto') { const log = VT.logs.find(l => l.type === c.v.log); if (c.level < log.level) out.push(`<span class="warn">${esc(log.log)} totems need ${log.level} Fletching.</span>`); }
+                    out.push('XP per totem follows the wiki calculator: 4 carvings plus each decoration, assuming the right spirits are carved. Every 100 offerings rummage into a research point and one roll on the offerings table (seeds by Fletching level).');
+                    if (c.v.points) out.push(`Research points are counted as ent branches (${VT.branchPoints} points each), as the wiki calculator does.`);
+                    return out;
+                }
+            },
+            {
+                key: 'pyramidPlunder', name: 'Pyramid Plunder', skill: 'thieving', min: PL.rooms[0].level, icon: "Pharaoh's sceptre (uncharged)", units: ['run', 'runs'], data: PL,
+                inputs: [
+                    { id: 'chest', label: 'Loot golden chests from room', type: 'select', def: '1', options: () => PL.rooms.map(r => [String(r.room), `Room ${r.room}`]) },
+                    { id: 'sarc', label: 'Loot sarcophagi from room', type: 'select', def: '4', options: () => PL.rooms.map(r => [String(r.room), `Room ${r.room}`]).concat([['9', 'Never']]) },
+                    { id: 'rate', label: 'Runs per hour', type: 'rate', auto: () => 60 / PL.minutes, hint: () => `The ${PL.minutes}-minute timer allows at most this many` },
+                    { id: 'xph', label: 'Thieving XP per hour', type: 'rate', auto: (c, L) => Math.round(between(PL.xpPerHour, L)), hint: () => `The wiki's ${PL.xpPerHour.map(([l, x]) => `${GE.fmtGp(x)} at ${l}`).join(' and ')}; between them it's interpolated` }
+                ],
+                unit(L, c) {
+                    const rooms = PL.rooms.filter(r => r.level <= L).length;
+                    let p = 0;
+                    for (let i = 0; i < rooms; i++) {
+                        if (i + 1 >= +c.v.chest) p += PL.chances[i];
+                        if (i + 1 >= +c.v.sarc) p += PL.chances[i];
+                    }
+                    const rate = c.rate(L);
+                    return { xp: { thieving: c.num('xph', L) / rate }, loot: [["Pharaoh's sceptre (uncharged)", p]], rate, extra: { rooms } };
+                },
+                stats: (sim, c) => {
+                    const p = sim.loot["Pharaoh's sceptre (uncharged)"] / Math.max(1, sim.units);
+                    return [['Sceptre per run', p ? '1/' + Math.round(1 / p).toLocaleString() : '—', `${PL.rooms.filter(r => r.level <= c.level).length} rooms at level ${c.level}`]];
+                },
+                notes: c => [
+                    (c.level < PL.rooms[0].level ? `<span class="warn">Pyramid Plunder needs ${PL.rooms[0].level} Thieving.</span> ` : '')
+                    + 'The sceptre chance per golden chest and sarcophagus comes from the wiki calculator, room by room up to the last room your level opens. Finding it ends the run.',
+                    `Artefacts aren't counted: the wiki has no drop rates for them. Below ${PL.xpPerHour[0][0]} Thieving the XP rate is the level ${PL.xpPerHour[0][0]} figure, so it's optimistic.`
+                ]
+            },
+            {
+                key: 'hespori', name: 'Hespori', skill: 'farming', min: HE.minLevel, icon: 'Attas seed', units: ['Hespori', 'Hespori'], data: HE,
+                inputs: [
+                    { id: 'outfit', label: "Farmer's outfit", type: 'check', def: false, text: "Wearing the farmer's outfit" },
+                    { id: 'rate', label: 'Hours to grow', type: 'rate', auto: () => HE.growMinutes / 60, hint: () => 'The Farming info time; it grows in 22–32 hours depending on when it\'s planted' }
+                ],
+                unit(L, c) {
+                    const loot = HE.table.map(r => [r.item, r.p * avg(r)]);
+                    loot.push(['Tangleroot', 1 / (HE.pet.base - Math.min(99, L) * HE.pet.step)]);
+                    return { xp: { farming: c.v.outfit ? HE.outfitXp : HE.xp }, loot, rate: 1 / Math.max(0.1, c.num('rate', L)) };
+                },
+                notes: c => [(c.level < HE.minLevel ? `<span class="warn">Hespori needs ${HE.minLevel} Farming.</span> ` : '')
+                    + `Each kill gives ${HE.xp.toLocaleString()} Farming XP when you harvest the patch, one roll on the anima seed table and one on the main table. Time is the wait for it to grow, one at a time.`,
+                    'The Tangleroot chance improves with Farming level (the wiki\'s formula). Hespori seeds aren\'t on the GE, so they aren\'t costed.']
             },
             {
                 key: 'zalcano', name: 'Zalcano', skill: null, icon: 'Crystal tool seed', units: ['kill', 'kills'], data: ZA,
