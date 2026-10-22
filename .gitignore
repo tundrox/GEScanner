@@ -3,3 +3,4 @@ download-icons.js
 update-icons.ps1
 build-calc-data.js
 selfcheck.js
+build-minigame-data.js

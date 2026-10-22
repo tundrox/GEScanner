@@ -1,0 +1,1283 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22%3E%3Ctext y=%22.9em%22 font-size=%2290%22%3E%E2%9A%94%EF%B8%8F%3C/text%3E%3C/svg%3E">
+    <title>OSRS Hub — Minigame Calculators</title>
+    <link rel="preconnect" href="https://prices.runescape.wiki">
+    <link rel="preconnect" href="https://api.wiseoldman.net">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link rel="preload" href="js/api.js" as="script">
+    <link rel="stylesheet" href="css/style.css">
+    <script>
+        window.__gePreload = {
+            mapping: fetch('https://prices.runescape.wiki/api/v2/osrs/mapping').then(r => r.json()),
+            latest: fetch('https://prices.runescape.wiki/api/v2/osrs/latest').then(r => r.json())
+        };
+    </script>
+    <style>
+        /* Skills | Minigames: section tabs, as on Trading and Scanner */
+        .calc-switch a.tf-tab:hover { opacity: 1; }
+
+        .mg-picker { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 6px; margin-bottom: 14px; }
+        .calc-skill {
+            display: flex; align-items: center; gap: 8px; padding: 6px 10px; cursor: pointer; min-width: 0;
+            border-radius: var(--radius-sm); border: 1px solid rgba(255,255,255,0.05);
+            background: rgba(255,255,255,0.02); color: var(--text-secondary);
+            font-family: inherit; font-size: 0.8rem; text-align: left; transition: all 0.2s;
+        }
+        .calc-skill:hover { background: rgba(255,255,255,0.05); color: var(--text-primary); }
+        .calc-skill.active { background: rgba(255,255,255,0.1); border-color: rgba(255,255,255,0.25); color: #fff; box-shadow: 0 0 14px rgba(255,255,255,0.06); }
+        .calc-skill img { image-rendering: pixelated; flex-shrink: 0; filter: drop-shadow(0 0 1px rgba(255,255,255,0.45)); }
+        .calc-skill .item-icon { background: transparent; }
+        .calc-skill .nm { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .calc-skill .sk { width: 14px; height: 14px; opacity: 0.55; }
+
+        .calc-form { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px 16px; }
+        .calc-form + .calc-form { margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--line); }
+        .calc-field { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+        .calc-field > span { font-size: 0.62rem; text-transform: uppercase; letter-spacing: 0.07em; color: var(--text-muted); font-weight: 600; }
+        .calc-field > span.hint { font-size: 0.68rem; color: var(--text-muted); line-height: 1.4; text-transform: none; letter-spacing: normal; font-weight: 400; }
+        .calc-field.check { justify-content: flex-end; }
+        .calc-field.check .checkbox-label { height: 33px; white-space: normal; }
+        .calc-pair { display: flex; gap: 6px; }
+        .calc-pair input { min-width: 0; }
+        .calc-pair input.lvl { width: 72px; flex-shrink: 0; }
+        .calc-pair input.xp { flex: 1; width: auto; }
+        .calc-field input[type="text"], .calc-field input[type="number"], .calc-field select { width: 100%; }
+        .calc-pair input[type="number"].lvl { width: 72px; }
+        .calc-quick { display: flex; flex-wrap: wrap; gap: 4px; }
+        .calc-quick button {
+            padding: 3px 9px; border-radius: 12px; font-size: 0.7rem; cursor: pointer; font-family: inherit;
+            border: 1px solid rgba(255,255,255,0.08); background: rgba(255,255,255,0.03); color: var(--text-secondary);
+        }
+        .calc-quick button:hover { color: #fff; background: rgba(255,255,255,0.08); }
+        .calc-rsn-status { font-size: 0.72rem; color: var(--text-muted); min-height: 1em; }
+        .calc-rsn-status.error { color: var(--red); }
+
+        .mg-tables { display: grid; grid-template-columns: minmax(0, 3fr) minmax(0, 2fr); gap: 12px; margin-bottom: 12px; align-items: start; }
+        .mg-tables.single { grid-template-columns: minmax(0, 1fr); }
+        .calc-table .muted { color: var(--text-muted); }
+        .calc-table .tag-sm { font-size: 0.62rem; color: var(--text-muted); border: 1px solid rgba(255,255,255,0.08); border-radius: 4px; padding: 0 4px; flex-shrink: 0; }
+        /* Total under a list, lined up with its last column */
+        .mg-total { display: flex; justify-content: space-between; gap: 12px; padding-top: 10px; font-size: 0.8rem; font-weight: 600; font-variant-numeric: tabular-nums; }
+        .mg-total span:first-child { color: var(--text-secondary); font-weight: 500; }
+        .calc-note { font-size: 0.72rem; color: var(--text-muted); line-height: 1.6; }
+        .calc-note a { color: var(--text-secondary); text-decoration: underline; text-decoration-color: rgba(255,255,255,0.15); }
+        .calc-note .warn { color: #f59e0b; }
+        .calc-status { text-align: center; padding: 40px 20px; color: var(--text-secondary); }
+        .mg-sources { font-size: 0.7rem; color: var(--text-muted); line-height: 1.7; margin-top: 8px; }
+        .mg-sources a { color: var(--text-secondary); }
+
+        @media (max-width: 1000px) {
+            .mg-tables { grid-template-columns: minmax(0, 1fr); }
+        }
+        @media (max-width: 700px) {
+            .mg-picker { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 4px; }
+            .calc-skill .sk { display: none; }
+            .calc-form { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 10px; }
+            .calc-form > .calc-field:first-child, .calc-form > .calc-field.check, .calc-form > .calc-field:has(.hint) { grid-column: 1 / -1; }
+            .calc-pair input.lvl, .calc-pair input[type="number"].lvl { width: 52px; }
+        }
+    </style>
+</head>
+<body>
+    <div id="nav"></div>
+    <div class="page">
+        <div class="page-header">
+            <h1 class="page-title">Calculators</h1>
+            <p class="page-subtitle">Minigames and activities: games needed, supplies, loot and profit at live GE prices</p>
+        </div>
+        <div class="section-tabs calc-switch"><a class="tf-tab" href="calculators.html">Skills</a><a class="tf-tab active" href="minigames.html">Minigames</a></div>
+
+        <div class="mg-picker" id="mgPicker"></div>
+
+        <div class="card" style="margin-bottom:12px">
+            <div class="card-header">
+                <span class="card-title" id="mgTitle">Minigame Calculator</span>
+                <span class="card-badge badge-green">Live GE prices · 2% tax</span>
+            </div>
+            <div class="calc-form">
+                <label class="calc-field">
+                    <span>RuneScape name</span>
+                    <div class="calc-pair">
+                        <input type="text" id="mgRsn" class="xp" placeholder="Optional — fills your levels" maxlength="12" autocomplete="off" spellcheck="false">
+                        <button class="btn btn-secondary" id="mgLoad" type="button">Load</button>
+                    </div>
+                    <div class="calc-rsn-status" id="mgRsnStatus"></div>
+                </label>
+                <div class="calc-field" id="mgCurField">
+                    <span id="mgCurLabel">Current level / XP</span>
+                    <div class="calc-pair">
+                        <input type="number" id="mgCurLvl" class="lvl" min="1" max="126" value="1">
+                        <input type="text" id="mgCurXp" class="xp" value="0">
+                    </div>
+                </div>
+                <label class="calc-field">
+                    <span>Goal</span>
+                    <select id="mgGoal">
+                        <option value="target">Reach a target level</option>
+                        <option value="amount">A set amount</option>
+                    </select>
+                </label>
+                <div class="calc-field" id="mgTgtField">
+                    <span>Target level / XP</span>
+                    <div class="calc-pair">
+                        <input type="number" id="mgTgtLvl" class="lvl" min="1" max="126" value="2">
+                        <input type="text" id="mgTgtXp" class="xp" value="83">
+                    </div>
+                    <div class="calc-quick" id="mgQuick">
+                        <button type="button" data-t="next">Next</button>
+                        <button type="button" data-t="70">70</button>
+                        <button type="button" data-t="80">80</button>
+                        <button type="button" data-t="90">90</button>
+                        <button type="button" data-t="99">99</button>
+                    </div>
+                </div>
+                <label class="calc-field" id="mgAmountField">
+                    <span id="mgAmountLabel">Amount</span>
+                    <input type="text" id="mgAmount" autocomplete="off">
+                    <span class="hint" id="mgAmountHint"></span>
+                </label>
+                <label class="calc-field">
+                    <span>Prices</span>
+                    <select id="mgPrices">
+                        <option value="instant">Instant (buy high, sell low)</option>
+                        <option value="patient">Patient offers (buy low, sell high)</option>
+                    </select>
+                </label>
+            </div>
+            <div class="calc-form" id="mgInputs"></div>
+        </div>
+
+        <div class="stats-row" id="mgStats"></div>
+
+        <div class="mg-tables" id="mgTables"></div>
+
+        <div class="card">
+            <div class="calc-note" id="mgNote" style="margin-top:0"></div>
+            <div class="mg-sources" id="mgSources" style="margin-top:10px"></div>
+        </div>
+    </div>
+
+    <script src="js/api.js"></script>
+    <script src="js/skills.js"></script>
+    <script src="data/minigames.js"></script>
+    <script>
+    (async () => {
+        document.getElementById('nav').innerHTML = GE.navHTML('Calculators');
+        GE.initAutocomplete();
+
+        const $ = id => document.getElementById(id);
+        const esc = s => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+        const RSN_KEY = 'ge_calc_rsn';
+        const D = (window.OSRS_DATA || {}).minigames;
+        if (!D) {
+            $('mgStats').innerHTML = '';
+            $('mgTables').innerHTML = '<div class="card calc-status">Couldn\'t load data/minigames.js — the calculator data is missing from this copy of the site.</div>';
+            return;
+        }
+
+        // ---------- Prices ----------
+        const [mapping, latestData] = await GE.preload();
+        const latest = latestData.data;
+        const byName = {};
+        for (const item of Object.values(mapping)) byName[item.name.toLowerCase()] = item;
+        // Wiki names that differ from the GE's
+        const ALIAS = { 'tome of fire': 'tome of fire (empty)' };
+        const itemFor = name => { const k = String(name).toLowerCase(); return byName[ALIAS[k] || k] || null; };
+        const instant = () => $('mgPrices').value === 'instant';
+        function buyPrice(name) {
+            if (name === 'Coins') return 1;
+            const it = itemFor(name), p = it && latest[it.id];
+            if (!p) return null;
+            return instant() ? (p.high || p.low) : (p.low || p.high);
+        }
+        // Net value of one when sold (after GE tax); containers are worth their expected contents
+        const CONTAINERS = Object.assign({}, D.tempoross.containers, D.guardians.containers,
+            { 'Bird nest (seeds)': D.birdhouses.seedNestTable, 'Bird nest (ring)': D.birdhouses.ringNestTable });
+        function valueOf(name, depth) {
+            if (name === 'Coins') return { each: 1, net: 1 };
+            const it = itemFor(name), p = it && latest[it.id];
+            if (it) {
+                const s = p ? (instant() ? (p.low || p.high) : (p.high || p.low)) : null;
+                return s == null ? { each: null, net: null, item: it } : { each: s, net: s - GE.geTax(s), item: it };
+            }
+            if (CONTAINERS[name] && !depth) {
+                let v = 0;
+                for (const x of CONTAINERS[name]) { const c = valueOf(x.item, 1); if (c.net) v += x.p * (x.lo + x.hi) / 2 * c.net; }
+                return { each: v, net: v, container: true };
+            }
+            return { each: null, net: null };
+        }
+
+        // ---------- Wiki formulas ----------
+        const clamp = (x, a, b) => Math.min(b, Math.max(a, x));
+        const floor1 = n => Math.floor(n * 10 + 1e-9) / 10;          // the game floors XP to 0.1
+        // Module:Skilling success chart p.interp
+        const interp = (low, high, L) => clamp((Math.floor(low * (99 - L) / 98 + high * (L - 1) / 98 + 0.5) + 1) / 256, 0, 1);
+        // Module:Herbiboar p.interp — the same, but Lua's math.modf truncates toward zero
+        const interpTrunc = (low, high, L) => clamp((1 + Math.trunc(low * (99 - L) / 98 + high * (L - 1) / 98 + 0.5)) / 256, 0, 1);
+        // Linear between a table's [level, value] points, flat beyond its ends
+        function between(points, L) {
+            if (!points.length) return null;
+            if (L <= points[0][0]) return points[0][1];
+            for (let i = 1; i < points.length; i++) {
+                const [l0, v0] = points[i - 1], [l1, v1] = points[i];
+                if (L <= l1) return v0 + (v1 - v0) * (L - l0) / (l1 - l0);
+            }
+            return points[points.length - 1][1];
+        }
+        const avg = r => (r.lo + r.hi) / 2;
+        const wikiLink = (page, text) => `<a href="${GE.wikiUrl(page)}" target="_blank" rel="noopener noreferrer">${esc(text || page)}</a>`;
+
+        // ---------- Calculators ----------
+        // unit(L, c) returns what one unit (a game, a bar, a permit...) gives at main-skill level L:
+        //   { xp: { skill: xp }, loot: [[item, qty]], cost: [[item, qty]], fees: [[label, gp]], gp, rate }
+        // where rate is units per hour. c.v holds the inputs, c.rate(L) the units per hour.
+        const BF = D.blastFurnace, CB = D.cannonballs, GF = D.giantsFoundry, SG = D.superglass, WT = D.wintertodt,
+            TP = D.tempoross, GR = D.guardians, ML = D.motherlode, BH = D.birdhouses, HB = D.herbiboar, TF = D.titheFarm, ZA = D.zalcano,
+            PP = D.pickpocketing, ZM = D.zmi, HS = D.sepulchre, BM = D.blastMine, VT = D.valeTotems, PL = D.pyramidPlunder, HE = D.hespori;
+
+        // Giants' Foundry (Module:Giants' Foundry Calculator)
+        const gfXp = q => (Math.floor(q * q / 73) + Math.floor(1.5 * q) + 1) * 30;
+        function gfMetalScore(t1, t2, a1, a2) {
+            let v1, v2;
+            if (t2 === t1 || t2 === 0) { v1 = 10 * t1; v2 = 0; } else { v1 = 10 * t1 * a1 / 28; v2 = 10 * t2 * a2 / 28; }
+            return Math.floor((Math.floor(10 * v1) + Math.floor(10 * v2) + Math.floor(v1 * v2)) / 10);
+        }
+        function gfSections(score) {
+            for (const [below, n] of GF.difficulty) if (score < below) return n;
+            return GF.maxSections;
+        }
+        function gfAverage(L, allMoulds, metal) {
+            let q = 0, xp = 0;
+            for (const [a, b, freq] of GF.requests) {
+                let score = metal;
+                for (const type of ['Forte', 'Blade', 'Tip']) {
+                    let best = 0;
+                    for (const m of GF.moulds) if (m.t === type && m.l <= L && (m.d || allMoulds)) best = Math.max(best, m.s[a] + m.s[b]);
+                    score += best;
+                }
+                q += freq * score / 24;
+                xp += freq * gfXp(score) / 24;
+            }
+            return { q, xp };
+        }
+        function gfMetals(v) {
+            let t1 = GF.barTier[v.metal1], t2 = GF.barTier[v.metal2], a1 = clamp(Math.round(+v.bars1 || 0), 0, 28), a2 = 28 - a1;
+            if (t2 === 0 && a2 > 0) { a1 = 28; a2 = 0; }             // as the wiki calculator: no second metal means 28 of the first
+            if (t1 === t2) { a1 = 28; a2 = 0; }
+            return { t1, t2, a1, a2, score: gfMetalScore(t1, t2, a1, a2) };
+        }
+        const gfPrefix = m => m === 'Runite' ? 'Rune' : m === 'Adamantite' ? 'Adamant' : m;
+        // Cheapest way to bring `amount` bars of a metal: the bars, or items that melt into them
+        function gfSource(metal, amount, cheapest) {
+            const bar = metal + ' bar', barPrice = buyPrice(bar);
+            let best = { item: bar, qty: amount, price: barPrice };
+            if (!cheapest || barPrice == null) return best;
+            for (const [type, worth] of Object.entries(GF.itemBarWorth)) {
+                const name = gfPrefix(metal) + ' ' + type, price = buyPrice(name);
+                if (price != null && price * amount / worth < best.price * best.qty) best = { item: name, qty: amount / worth, price };
+            }
+            return best;
+        }
+
+        // Wintertodt reward cart (Reward Cart page + Module:Wintertodt supply crate)
+        function wtRollLoot(c) {
+            const v = c.v, out = [];
+            let none = 1;                                             // chance no unique roll succeeds
+            for (const u of WT.chain) {
+                if (u.item === 'Phoenix' && v.hasPhoenix) continue;
+                const p = u.p * none;
+                none *= 1 - u.p;
+                const pyro = v.sellPyro ? [['Burnt page', 50 * p]] : null;
+                if (u.item === 'Warm gloves') out.push(...(v.gloves3 ? [['Magic seed', p]] : pyro || [['Warm gloves', p]]));
+                else if (u.item === 'Bruma torch') out.push(...(v.torches3 ? [['Torstol seed', p * (WT.torstolSeeds[0] + WT.torstolSeeds[1]) / 2]] : pyro || [['Bruma torch', p]]));
+                else if (u.item === 'Pyromancer outfit') out.push(...(pyro || [['Pyromancer outfit', p]]));
+                else if (u.item === 'Burnt page') out.push(['Burnt page', p * (WT.burntPages[0] + WT.burntPages[1]) / 2]);
+                else out.push([u.item, p]);
+            }
+            for (const [skill, t] of Object.entries(WT.sub)) {
+                const L = c.lvl(skill);
+                let left = 1;
+                for (const it of t.items) {
+                    const raw = Math.floor(it.low + (it.high - it.low) * (L - 1) / 98);
+                    const chance = left * clamp(raw + 1, 0, 256) / 256;
+                    left -= chance;
+                    if (chance > 0) out.push([it.item, none * t.p * chance * (it.lo + it.hi) / 2]);
+                }
+            }
+            for (const o of WT.other) out.push([o.item, none * o.p * avg(o)]);
+            return out;
+        }
+
+        // Tempoross XP per hour from the wiki's table for the harpoon (falls back to the regular harpoon below its first level)
+        function tpXpPerHour(L, v) {
+            const table = TP.rates[v.cook ? 'cooked' : 'raw'];
+            const h = table.find(t => t.harpoon === v.harpoon) || table[0];
+            const pts = L < h.points[0][0] ? table[0].points : h.points;
+            return between(pts, L);
+        }
+        const tpBand = L => { const keys = Object.keys(TP.fish).map(Number).sort((a, b) => a - b); return keys.filter(k => k <= L).pop() || keys[0]; };
+        const tpCatchXp = L => {
+            const b = L > TP.catchXp.high.above ? TP.catchXp.high : TP.catchXp.low;
+            return Math.trunc(b.base + (1000 - b.base) * (L - b.level) / (99 - b.level));
+        };
+
+        // Guardians of the Rift XP per hour by level band (Runecraft training guide)
+        const grBand = L => GR.xpRates.find(b => L >= b.from && L <= b.to) || (L < GR.xpRates[0].from ? GR.xpRates[0] : GR.xpRates[GR.xpRates.length - 1]);
+
+        // Motherlode Mine ores: rolled from the top tier you can get, coal if every roll fails
+        function mlOres(L, diary) {
+            const out = [];
+            let rate = 1, total = 0;
+            const boost = { 'Runite ore': 0.01, 'Adamantite ore': 0.02, 'Mithril ore': 0.01 };
+            for (const o of ML.chart) {
+                if (o.label === 'Coal') continue;
+                if (L < o.req) continue;
+                const p = interp(o.low, o.high, L);
+                let chance = rate * p;
+                rate *= 1 - p;
+                if (diary && boost[o.label]) chance += boost[o.label];
+                out.push([o.label, chance]);
+                total += chance;
+            }
+            out.push(['Coal', Math.max(0, 1 - total)]);
+            return out;
+        }
+
+        // Bird houses
+        const bhBest = L => BH.types.filter(t => t.level <= L).pop() || BH.types[0];
+        const bhNestRoll = (high, L) => Math.trunc(high * (Math.max(50, L) - 1) / 98) / 1000;
+        function bhCheapestSeed() {
+            let best = null;
+            for (const s of BH.seeds) {
+                const p = buyPrice(s.seed);
+                if (p != null && (!best || p * s.qty < best.cost)) best = { seed: s.seed, qty: s.qty, cost: p * s.qty };
+            }
+            return best || { seed: BH.seeds[0].seed, qty: BH.seeds[0].qty, cost: null };
+        }
+
+        // Herbiboar (Module:Herbiboar)
+        function hbHunterXp(L) {
+            const f = HB.hunterXp;
+            let xp = f.base + f.searches * f.searchXp + f.perLevel * Math.min(L, f.cap);
+            if (L > f.cap) xp += f.at95 + f.after95 * (L - (f.cap + 1));
+            return xp;
+        }
+        function hbHerbs(L) {
+            const out = [];
+            let rate = 1;
+            for (const h of HB.chances) {
+                const p = interpTrunc(h.low, h.high, L);
+                out.push([h.herb, rate * p]);
+                if (L >= h.req) rate *= 1 - p;
+            }
+            return out;
+        }
+
+        const tfSeed = (L, v) => (v.seed && v.seed !== 'auto' ? TF.seeds.find(s => s.seed === v.seed) : TF.seeds.filter(s => s.level <= L).pop()) || TF.seeds[0];
+        function tfXp100(s, outfit) {
+            const boost = outfit ? 1 + TF.outfitBoost / 100 : 1;
+            // Fruit 1–74 give the deposit XP, 75–100 double, plus the 75th-fruit bonus (not boosted)
+            return floor1(s.harvest * boost) * 100 + floor1(s.deposit * boost) * 74 + floor1(2 * s.deposit * boost) * 26 + s.bonus;
+        }
+
+        const CALCS = [
+            {
+                key: 'blastFurnace', name: 'Blast Furnace', skill: 'smithing', min: 30, icon: 'Runite bar', units: ['bar', 'bars'], data: BF,
+                inputs: [
+                    { id: 'bar', label: 'Bar', type: 'select', def: 'Steel', options: () => BF.bars.map(b => [b.name, `${b.name} (level ${b.level})`]) },
+                    { id: 'coalBag', label: 'Coal bag', type: 'check', def: true, text: 'Using a coal bag', show: v => !!bfBar(v).coalBag },
+                    { id: 'rate', label: 'Bars per hour', type: 'rate', auto: c => { const b = bfBar(c.v), r = (c.v.coalBag && b.coalBag) || b.perHour; return Math.round((r[0] + r[1]) / 2); },
+                        hint: c => { const b = bfBar(c.v), r = (c.v.coalBag && b.coalBag) || b.perHour; return `Wiki range ${r[0].toLocaleString()}–${r[1].toLocaleString()} an hour; the midpoint is used`; } }
+                ],
+                unit(L, c) {
+                    const b = bfBar(c.v), rate = c.rate(L);
+                    const fees = [[`Coffer (${GE.fmtGp(BF.coffer)}/h)`, BF.coffer / rate]];
+                    if (L < BF.fee.level) fees.push([`Foreman fee (under ${BF.fee.level} Smithing)`, BF.fee.gp * 60 / BF.fee.minutes / rate]);
+                    return { xp: { smithing: b.xp }, loot: [[b.bar, 1]], cost: b.ores, fees, rate };
+                },
+                notes: c => {
+                    const b = bfBar(c.v), out = [];
+                    if (c.level < b.level) out.push(`<span class="warn">${esc(b.name)} needs level ${b.level} Smithing.</span>`);
+                    out.push(`Costs include the coffer the dwarves are paid from on official Blast Furnace worlds (${BF.coffer.toLocaleString()} gp an hour), and the foreman's ${BF.fee.gp.toLocaleString()} gp per ${BF.fee.minutes} minutes below ${BF.fee.level} Smithing.`
+                        + (/gauntlets/.test(b.name) ? ' Goldsmith gauntlets give the higher XP.' : ''));
+                    return out;
+                }
+            },
+            {
+                key: 'cannonballs', name: 'Cannonballs', skill: 'smithing', min: 35, icon: 'Steel cannonball', units: ['bar', 'bars'], data: CB,
+                inputs: [
+                    { id: 'ball', label: 'Cannonball', type: 'select', def: 'Steel cannonball', options: () => CB.types.map(t => [t.ball, `${t.ball} (level ${t.level})`]) },
+                    { id: 'mould', label: 'Setup', type: 'select', def: 'double', options: () => [['single', 'Furnace + ammo mould'], ['double', 'Furnace + double ammo mould'], ['ancient', `Ancient furnace + double mould (${CB.ancientLevel} Sailing)`]] },
+                    { id: 'rate', label: 'Bars per hour', type: 'rate', auto: c => c.v.mould === 'ancient' ? CB.ancient : c.v.mould === 'double' ? CB.doubleMould : CB.ammoMould,
+                        hint: () => 'The wiki\'s rough estimate for this setup (Edgeville furnace)' }
+                ],
+                unit(L, c) {
+                    const t = CB.types.find(x => x.ball === c.v.ball) || CB.types[0];
+                    return { xp: { smithing: t.xp }, loot: [[t.ball, t.perBar]], cost: [[t.bar, 1]], rate: c.rate(L) };
+                },
+                notes: c => {
+                    const t = CB.types.find(x => x.ball === c.v.ball) || CB.types[0];
+                    return [(c.level < t.level ? `<span class="warn">${esc(t.ball)}s need level ${t.level} Smithing.</span> ` : '')
+                        + `Each bar makes ${t.perBar} cannonballs (the double mould makes ${2 * t.perBar} from two bars, same XP per bar).`];
+                }
+            },
+            {
+                key: 'giantsFoundry', name: "Giants' Foundry", skill: 'smithing', min: GF.minLevel, icon: 'Mithril bar', units: ['sword', 'swords'], data: GF,
+                inputs: [
+                    { id: 'metal1', label: 'First metal', type: 'select', def: 'Mithril', options: () => Object.keys(GF.barTier).filter(m => m !== 'None').map(m => [m, m + ' bar']) },
+                    { id: 'bars1', label: 'Bars of the first metal (of 28)', type: 'number', def: 14, min: 0, max: 28 },
+                    { id: 'metal2', label: 'Second metal', type: 'select', def: 'Adamantite', options: () => Object.keys(GF.barTier).map(m => [m, m === 'None' ? 'None' : m + ' bar']) },
+                    { id: 'moulds', label: 'Moulds', type: 'select', def: 'all', options: () => [['all', 'All moulds up to my level'], ['default', 'Default moulds only']] },
+                    { id: 'source', label: 'Metal from', type: 'select', def: 'cheapest', options: () => [['cheapest', 'Cheapest: bars or items to melt'], ['bars', 'Bars only']] },
+                    { id: 'rate', label: 'Swords per hour', type: 'rate', auto: c => GF.swordsPerHour[clamp(gfSections(gfMetals(c.v).score) - 3, 0, GF.swordsPerHour.length - 1)],
+                        hint: c => `Jagex's release estimate for a ${gfSections(gfMetals(c.v).score)}-section alloy (${GF.swordsPerHour.join(', ')} an hour from the lowest to the highest tier)` }
+                ],
+                unit(L, c) {
+                    const m = gfMetals(c.v), a = gfAverage(L, c.v.moulds === 'all', m.score);
+                    const cost = [];
+                    const cheapest = c.v.source === 'cheapest';
+                    for (const [metal, amount] of [[c.v.metal1, m.a1], [c.v.metal2, m.a2]]) {
+                        if (!amount || metal === 'None') continue;
+                        const s = gfSource(metal, amount, cheapest);
+                        cost.push([s.item, s.qty]);
+                    }
+                    // Kovac pays twice the XP in coins; reputation equals the quality
+                    return { xp: { smithing: a.xp }, gp: 2 * a.xp, cost, rate: c.rate(L), extra: { quality: a.q, rep: a.q } };
+                },
+                stats: (sim, c) => {
+                    const u = sim.first;
+                    return [
+                        ['Sword quality', u.extra.quality.toFixed(1), `${gfSections(gfMetals(c.v).score)} sections · ${GE.fmtGp(Math.floor(u.xp.smithing))} XP each`],
+                        ['Reputation', Math.floor(sim.extra.rep).toLocaleString(), `${Math.floor(sim.extra.rep / GF.grogRep).toLocaleString()} Kovac's grog at ${GF.grogRep} each`]
+                    ];
+                },
+                notes: () => ['Quality is averaged over the commissions Kovac asks for, using the best mould you have for each (no mistakes). XP and coins come from the wiki\'s formula: (⌊q²/73⌋ + ⌊1.5q⌋ + 1) × 30 XP, twice that in coins. '
+                    + 'Items to melt: the wiki calculator\'s list (a platebody gives 4 bars, most two-bar items 2).']
+            },
+            {
+                key: 'superglass', name: 'Superglass Make', skill: 'crafting', icon: 'Molten glass', units: ['cast', 'casts'], data: SG,
+                inputs: [
+                    { id: 'method', label: 'Ingredients', type: 'select', def: 'gs3pickup', options: () => SG.methods.map(m => [m.key, m.name]) },
+                    { id: 'staff', label: 'Staff', type: 'select', def: 'smoke', options: () => [['smoke', 'Smoke battlestaff (no air or fire runes)'], ['air', 'Staff of air (no air runes)'], ['none', 'No staff']] },
+                    { id: 'product', label: 'Then', type: 'select', def: '', options: () => [['', 'Sell the molten glass']].concat(SG.glassblowing.map(g => [g.name, `Blow it into: ${g.name} (level ${g.level})`])) },
+                    { id: 'rate', label: 'Casts per hour', type: 'rate', auto: c => { const m = sgMethod(c.v); return m.glassPerHour ? Math.round(m.glassPerHour / (m.sand * m.perSand)) : SG.castsPerHour; },
+                        hint: c => { const m = sgMethod(c.v); return m.glassPerHour ? `From the wiki's ${m.glassPerHour.toLocaleString()} glass an hour for this method` : 'The wiki gives no rate for this method; the money making guide\'s rate is used'; } },
+                    { id: 'farming', label: 'Farming level (for spores)', type: 'level', skill: 'farming', def: 70, show: v => /^gs/.test(v.method) },
+                    { id: 'compost', label: 'Compost on seaweed', type: 'select', def: 'Ultracompost', options: () => Object.keys(SG.farming.compost).map(k => [k, k === 'None' ? 'No compost' : k]), show: v => /^gs/.test(v.method) }
+                ],
+                unit(L, c) {
+                    const m = sgMethod(c.v), glass = m.sand * m.perSand;
+                    const prod = c.v.product && SG.glassblowing.find(g => g.name === c.v.product);
+                    const cost = [[m.weed || 'Giant seaweed', m.seaweed], ['Bucket of sand', m.sand]];
+                    for (const [rune, n] of Object.entries(SG.runes)) {
+                        if (c.v.staff === 'smoke' && (rune === 'Air rune' || rune === 'Fire rune')) continue;
+                        if (c.v.staff === 'air' && rune === 'Air rune') continue;
+                        cost.push([rune, n]);
+                    }
+                    const xp = { crafting: SG.craftPerSand * m.sand + (prod ? prod.xp * glass : 0), magic: SG.magicXp };
+                    return { xp, loot: [[prod ? prod.out : 'Molten glass', glass]], cost, rate: c.rate(L) };
+                },
+                stats: (sim, c) => {
+                    const m = sgMethod(c.v);
+                    if (!/^gs/.test(m.key)) return [];
+                    const seaweed = (sim.cost['Giant seaweed'] || 0);
+                    const f = SG.farming, Lf = clamp(c.lvl('farming'), 1, 99), comp = f.compost[c.v.compost] || [0, 0];
+                    const chance = Math.floor(f.cts[0] * (99 - Lf) / 98 + f.cts[1] * (Lf - 1) / 98);
+                    const perSpore = (3 + comp[0]) / (1 - (chance + 1) / 256);
+                    return [['Seaweed spores', Math.ceil(seaweed / perSpore).toLocaleString(), `≈${perSpore.toFixed(1)} giant seaweed each at ${Lf} Farming`]];
+                },
+                notes: c => {
+                    const m = sgMethod(c.v), prod = c.v.product && SG.glassblowing.find(g => g.name === c.v.product), out = [];
+                    if (player && c.lvl('magic') < SG.minLevel) out.push(`<span class="warn">Superglass Make needs ${SG.minLevel} Magic (Lunar spellbook).</span>`);
+                    out.push(`${m.sand} sand make ${(m.sand * m.perSand).toFixed(1)} molten glass a cast on average (${m.perSand} per sand). Crafting XP is ${SG.craftPerSand} per sand; Magic ${SG.magicXp} a cast.`);
+                    if (prod) out.push(`Blowing the glass adds ${prod.xp} Crafting XP per glass${c.level < prod.level ? ` (<span class="warn">needs ${prod.level} Crafting</span>)` : ''}; the time is not included in the hours.`);
+                    if (m.key === 'gs3') out.push('The Giant seaweed page gives 1.477 glass per sand for this method; the Superglass Make page (used here) gives 1.45.');
+                    return out;
+                }
+            },
+            {
+                key: 'wintertodt', name: 'Wintertodt', skill: 'firemaking', min: WT.minLevel, icon: 'Bruma torch', units: ['game', 'games'], data: WT,
+                inputs: [
+                    { id: 'strategy', label: 'Strategy', type: 'select', def: 'roots', options: () => [['roots', 'Feed bruma roots'], ['kindling', 'Fletch roots into kindling']] },
+                    { id: 'points', label: 'Points per game', type: 'rate', auto: c => WT.defaults[c.v.strategy].points,
+                        hint: c => { const d = WT.defaults[c.v.strategy]; return `Strategy guide: ${d.range[0]}–${d.range[1]} in a group (the midpoint is used)`; } },
+                    { id: 'rate', label: 'Games per hour', type: 'rate', auto: c => WT.defaults[c.v.strategy].gamesPerHour, hint: () => 'Group play, from the strategy guide' },
+                    { id: 'woodcutting', label: 'Woodcutting level', type: 'level', skill: 'woodcutting', def: 1 },
+                    { id: 'fletching', label: 'Fletching level', type: 'level', skill: 'fletching', def: 1, show: v => v.strategy === 'kindling' },
+                    { id: 'herblore', label: 'Herblore level (herbs)', type: 'level', skill: 'herblore', def: 1 },
+                    { id: 'mining', label: 'Mining level (ores)', type: 'level', skill: 'mining', def: 1 },
+                    { id: 'fishing', label: 'Fishing level (fish)', type: 'level', skill: 'fishing', def: 1 },
+                    { id: 'crafting', label: 'Crafting level (gems)', type: 'level', skill: 'crafting', def: 1 },
+                    { id: 'farming', label: 'Farming level (seeds)', type: 'level', skill: 'farming', def: 1 },
+                    { id: 'hasPhoenix', label: 'Pet', type: 'check', def: false, text: 'Already have the Phoenix' },
+                    { id: 'gloves3', label: 'Warm gloves', type: 'check', def: false, text: '3 warm gloves (gloves → magic seed)' },
+                    { id: 'torches3', label: 'Bruma torches', type: 'check', def: false, text: '3 bruma torches (torch → torstol seeds)' },
+                    { id: 'sellPyro', label: 'Ignisia', type: 'check', def: false, text: 'Trade spare uniques for 50 burnt pages' }
+                ],
+                unit(L, c) {
+                    const P = Math.max(0, c.num('points', L)), ok = P >= WT.minPoints;
+                    const rolls = ok ? 1 + P / 500 : 0;
+                    const xp = { firemaking: ok ? WT.xp.subdue * L : 0 };
+                    if (c.v.strategy === 'kindling') {
+                        const n = P / WT.points.kindling;
+                        xp.firemaking += WT.xp.feedKindling * L * n;
+                        xp.woodcutting = WT.xp.cutRoot * c.lvl('woodcutting') * n;
+                        xp.fletching = WT.xp.fletchRoot * c.lvl('fletching') * n;
+                    } else {
+                        const n = P / WT.points.root;
+                        xp.firemaking += WT.xp.feedRoot * L * n;
+                        xp.woodcutting = WT.xp.cutRoot * c.lvl('woodcutting') * n;
+                    }
+                    c.wtLoot = c.wtLoot || wtRollLoot(c);
+                    return { xp, loot: c.wtLoot.map(([i, q]) => [i, q * rolls]), rate: c.rate(L), extra: { rolls } };
+                },
+                stats: sim => [['Reward rolls', Math.round(sim.extra.rolls).toLocaleString(), `${(sim.extra.rolls / Math.max(1, sim.units)).toFixed(2)} a game`]],
+                notes: c => [
+                    (c.level < WT.minLevel ? `<span class="warn">Wintertodt needs ${WT.minLevel} Firemaking.</span> ` : '')
+                    + `XP per game: ${WT.xp.subdue}× your Firemaking level for the win (with ${WT.minPoints}+ points), plus ${c.v.strategy === 'kindling' ? `${WT.xp.feedKindling}× per kindling (${WT.points.kindling} points)` : `${WT.xp.feedRoot}× per root fed (${WT.points.root} points)`}. Points from lighting or fixing braziers and healing pyromancers aren't counted.`,
+                    `Loot: ${WT.minPoints} points = 2 reward rolls, plus one per 500 more. Material quality follows your level in each skill when you search the cart.`
+                ]
+            },
+            {
+                key: 'tempoross', name: 'Tempoross', skill: 'fishing', min: TP.minLevel, icon: 'Dragon harpoon', units: ['permit', 'permits'], data: TP,
+                inputs: [
+                    { id: 'harpoon', label: 'Harpoon', type: 'select', def: 'Dragon', options: () => TP.rates.raw.map(r => [r.harpoon, r.harpoon]) },
+                    { id: 'cook', label: 'Harpoonfish', type: 'check', def: false, text: 'Cooking the harpoonfish' },
+                    { id: 'rate', label: 'Permits per hour', type: 'rate', auto: () => TP.permitsPerHour, hint: () => 'From the wiki\'s money making guide' },
+                    { id: 'xph', label: 'Fishing XP per hour', type: 'rate', auto: (c, L) => Math.round(tpXpPerHour(L, c.v)), hint: () => 'Blank: the wiki\'s XP table for your level, between its listed levels' },
+                    { id: 'barrel', label: 'Fish barrel', type: 'check', def: false, text: 'Already have a fish barrel' },
+                    { id: 'tackle', label: 'Tackle box', type: 'check', def: false, text: 'Already have a tackle box' },
+                    { id: 'big', label: 'Big harpoonfish', type: 'check', def: false, text: 'Already have a big harpoonfish' }
+                ],
+                unit(L, c) {
+                    const owned = { 'Fish barrel': c.v.barrel, 'Tackle box': c.v.tackle, 'Big harpoonfish': c.v.big };
+                    const loot = [];
+                    for (const r of TP.fish[tpBand(L)]) loot.push([r.item, r.p * avg(r)]);
+                    for (const r of TP.shared) {
+                        if (r.replaces ? !owned[r.replaces] : owned[r.item]) continue;
+                        loot.push([r.item, r.p * avg(r)]);
+                    }
+                    const rate = c.rate(L), xph = c.num('xph', L);
+                    return { xp: { fishing: xph / rate }, loot, rate };
+                },
+                stats: (sim, c) => [['XP per catch', (tpCatchXp(c.level) / 100).toFixed(2), `ammo crate ${(tpCatchXp(c.level) / 10).toFixed(1)} · spirit pool ${(tpCatchXp(c.level) * 11 / 100).toFixed(2)}`]],
+                notes: c => [
+                    (c.level < TP.minLevel ? `<span class="warn">Tempoross needs ${TP.minLevel} Fishing.</span> ` : '')
+                    + `One permit for the first ${TP.permit.first.toLocaleString()} points in a game, then one per ${TP.permit.step} more. Fish in the reward pool follow your Fishing level when you search it.`,
+                    'Owned uniques (fish barrel, tackle box, big harpoonfish) are replaced by 25 soaked pages. The casket is valued by its expected contents.'
+                ]
+            },
+            {
+                key: 'guardians', name: 'Guardians of the Rift', skill: 'runecrafting', min: GR.minLevel, icon: 'Catalytic talisman', units: ['search', 'searches'], data: GR,
+                inputs: [
+                    { id: 'rate', label: 'Reward searches per hour', type: 'rate', auto: () => GR.searchesPerHour, hint: () => 'From the wiki\'s money making guide' },
+                    { id: 'xph', label: 'Runecraft XP per hour', type: 'rate', auto: (c, L) => grBand(L).rc, hint: () => 'Blank: the Runecraft training guide\'s rate for your level band' },
+                    { id: 'pouches', label: 'Essence pouches', type: 'check', def: true, text: 'Own all essence pouches (or the colossal pouch)' }
+                ],
+                unit(L, c) {
+                    const rate = c.rate(L), band = grBand(L), all = c.v.pouches;
+                    const loot = [];
+                    for (const r of GR.table) {
+                        if (/pouch$|pouch#/.test(r.item) && r.item !== 'Intricate pouch') {
+                            // The four pouches share one slot: a pouch you don't own yet
+                            if (!all && !loot.some(l => l[0] === 'Essence pouch')) loot.push(['Essence pouch', r.p]);
+                            continue;
+                        }
+                        if (r.item === "Atlax's diary" || r.item === 'Abyssal needle') continue;     // once only
+                        loot.push([r.item, (all && r.alt ? r.alt : r.p) * avg(r)]);
+                    }
+                    const xph = c.num('xph', L);
+                    return { xp: { runecrafting: xph / rate, crafting: band.crafting * xph / band.rc / rate, mining: band.mining * xph / band.rc / rate }, loot, rate };
+                },
+                notes: c => [
+                    (c.level < GR.minLevel ? `<span class="warn">Guardians of the Rift needs ${GR.minLevel} Runecraft.</span> ` : '')
+                    + (c.level < GR.xpRates[0].from ? `The training guide gives no rate below level ${GR.xpRates[0].from}, so its ${GR.xpRates[0].from}–${GR.xpRates[0].to} rate is used. ` : '')
+                    + `A search costs one elemental and one catalytic point (one per 100 energy of that type, up to ${GR.maxEnergy.toLocaleString()} energy a game). Each game also gives ${GR.xpPerLevel}× your Runecraft level in XP; it's part of the hourly rate.`,
+                    'Loot is the Rewards Guardian\'s table only; runes you craft during games aren\'t counted. Intricate pouches are valued by their expected contents.'
+                ]
+            },
+            {
+                key: 'motherlode', name: 'Motherlode Mine', skill: 'mining', min: ML.minLevel, icon: 'Adamantite ore', units: ['pay-dirt', 'pay-dirt'], data: ML,
+                inputs: [
+                    { id: 'rate', label: 'Pay-dirt per hour', type: 'rate', auto: (c, L) => Math.round(between(ML.payDirtPerHour, L)), hint: () => 'Blank: the wiki\'s rate for your level (upper floor from 57, dragon pickaxe from 61)' },
+                    { id: 'diary', label: 'Falador diary', type: 'check', def: false, text: 'Elite Falador diary (~1–2% better ores)' }
+                ],
+                unit(L, c) {
+                    const ores = mlOres(L, c.v.diary);
+                    let bonus = 0;
+                    for (const [ore, p] of ores) bonus += p * ((ML.bonus[ore] || {}).xp || 0);
+                    return { xp: { mining: ML.xpPerDirt + bonus }, loot: ores, rate: c.rate(L) };
+                },
+                notes: c => [
+                    (c.level < ML.minLevel ? `<span class="warn">The mine needs ${ML.minLevel} Mining.</span> ` : '')
+                    + `Each pay-dirt gives ${ML.xpPerDirt} XP when mined, plus bonus XP for the ore it cleans into. Ores follow your level when mining, rolled from the best tier down; coal if every roll fails.`
+                ]
+            },
+            {
+                key: 'birdhouses', name: 'Bird houses', skill: 'hunter', min: BH.types[0].level, icon: 'Bird nest (empty)', units: ['run', 'runs'], data: BH,
+                inputs: [
+                    { id: 'type', label: 'Bird house', type: 'select', def: 'auto', options: () => [['auto', 'Best for my Hunter level']].concat(BH.types.map(t => [t.name, `${t.item} (level ${t.level})`])) },
+                    { id: 'seed', label: 'Seeds', type: 'select', def: 'auto', options: () => [['auto', 'Cheapest at live prices']].concat(BH.seeds.map(s => [s.seed, `${s.seed} (${s.qty} a house)`])) },
+                    { id: 'buy', label: 'Bird houses', type: 'check', def: false, text: 'Buy the bird houses (no Crafting XP)' },
+                    { id: 'foot', label: 'Strung rabbit foot', type: 'check', def: false, text: 'Wearing a strung rabbit foot' },
+                    { id: 'rate', label: 'Minutes per run', type: 'rate', auto: () => BH.minutesPerRun, hint: () => 'Active time for 4 houses, from the money making guide; a run is ready every 50 minutes' }
+                ],
+                unit(L, c) {
+                    const t = c.v.type === 'auto' ? bhBest(L) : BH.types.find(x => x.name === c.v.type);
+                    const seed = c.v.seed === 'auto' ? (c.seed = c.seed || bhCheapestSeed()) : BH.seeds.find(s => s.seed === c.v.seed);
+                    const per = (item, q) => [item, 4 * q];
+                    const loot = [per('Feather', BH.feathers[2]), per('Raw bird meat', BH.meat)];
+                    if (L >= BH.seedNest.req) loot.push(per('Bird nest (seeds)', interp(BH.seedNest.low, BH.seedNest.high, L)));
+                    const nests = BH.rolls * bhNestRoll(BH.nestHigh[t.name], L);
+                    const clue = BH.clues.reduce((s, x) => s + x.p, 0);
+                    for (const x of BH.clues) loot.push(per(x.item, nests * x.p));
+                    for (const x of BH.nests) loot.push(per(x.item, nests * (1 - clue) * (c.v.foot ? x.foot : x.p)));
+                    const cost = [per(c.v.buy ? t.item : t.log, 1), per(seed.seed, seed.qty)];
+                    const xp = { hunter: 4 * t.xp };
+                    if (!c.v.buy) xp.crafting = 4 * t.craftXp;
+                    const minutes = Math.max(0.1, c.num('rate', L));
+                    return { xp, loot, cost, rate: 60 / minutes };
+                },
+                stats: sim => [['Calendar time', fmtHours(sim.units * 50 / 60), 'one run every 50 minutes']],
+                notes: c => {
+                    const t = c.v.type === 'auto' ? bhBest(c.level) : BH.types.find(x => x.name === c.v.type), out = [];
+                    if (c.level < t.level) out.push(`<span class="warn">${esc(t.item)}s need ${t.level} Hunter.</span>`);
+                    if (!c.v.buy) out.push(`Crafting a ${esc(t.item.toLowerCase())} needs ${t.craftLevel} Crafting.`);
+                    out.push(`Each house gives a seed nest at a chance that grows with Hunter level, then ${BH.rolls} rolls for ring, egg or empty nests (better with higher tiers). Nests are valued by their contents.`);
+                    if (c.v.type === 'auto') out.push('The bird house tier moves up as you level.');
+                    return out;
+                }
+            },
+            {
+                key: 'herbiboar', name: 'Herbiboar', skill: 'hunter', min: HB.minLevel, icon: 'Grimy ranarr weed', units: ['catch', 'catches'], data: HB,
+                inputs: [
+                    { id: 'herblore', label: 'Herblore level', type: 'level', skill: 'herblore', def: HB.herbloreLevel },
+                    { id: 'secateurs', label: 'Magic secateurs', type: 'check', def: false, text: 'Magic secateurs (one more herb)' },
+                    { id: 'clean', label: 'Herbs', type: 'check', def: false, text: 'Clean the herbs before selling' },
+                    { id: 'rate', label: 'Catches per hour', type: 'rate', auto: () => HB.perHour, hint: () => 'From the wiki\'s money making guide' }
+                ],
+                unit(L, c) {
+                    const amount = c.v.secateurs ? HB.herbs.secateurs : HB.herbs.normal;
+                    const herbs = hbHerbs(clamp(c.lvl('herblore'), 1, 99));
+                    let herbXp = HB.herbloreXpPerExtraHerb * (amount - 1);
+                    const loot = [];
+                    for (const [herb, p] of herbs) {
+                        const grimy = 'Grimy ' + herb.toLowerCase();
+                        if (c.v.clean) herbXp += amount * p * (HB.cleaning[grimy] || 0);
+                        loot.push([c.v.clean ? herb : grimy, amount * p]);
+                    }
+                    for (const f of HB.fossils) loot.push([f.item, f.perCatch]);
+                    loot.push(['Herbi', 1 / HB.petChance]);
+                    return { xp: { hunter: hbHunterXp(L), herblore: herbXp }, loot, rate: c.rate(L) };
+                },
+                notes: c => [
+                    (c.level < HB.minLevel || c.lvl('herblore') < HB.herbloreLevel ? `<span class="warn">Herbiboar needs ${HB.minLevel} Hunter and ${HB.herbloreLevel} Herblore.</span> ` : '')
+                    + `Hunter XP per catch follows the wiki's formula (${GE.fmtGp(hbHunterXp(80))} at 80, ${GE.fmtGp(hbHunterXp(99))} at 99), including the trail. Herbs: 1–3 a catch (2–4 with secateurs), ${HB.herbloreXpPerExtraHerb} Herblore XP for each after the first; the herb mix follows your Herblore level.`,
+                    'Numulite from the trail isn\'t counted (the wiki calculator leaves it out too).'
+                ]
+            },
+            {
+                key: 'titheFarm', name: 'Tithe Farm', skill: 'farming', min: TF.seeds[0].level, icon: null, units: ['batch of 100 fruit', 'batches of 100 fruit'], data: TF,
+                inputs: [
+                    { id: 'seed', label: 'Seed', type: 'select', def: 'auto', options: () => [['auto', 'Best for my Farming level']].concat(TF.seeds.map(s => [s.seed, `${s.seed} (level ${s.level})`])) },
+                    { id: 'outfit', label: "Farmer's outfit", type: 'check', def: false, text: "Wearing the farmer's outfit" },
+                    { id: 'rate', label: 'Minutes per 100 fruit', type: 'rate', auto: () => TF.minutesPer100, hint: () => 'The 25x4 method, from the Tithe Farm page' }
+                ],
+                unit(L, c) {
+                    const s = tfSeed(L, c.v), points = Math.floor(100 / TF.fruitPerPoint) + TF.bonusPoints;
+                    return { xp: { farming: tfXp100(s, c.v.outfit) }, rate: 60 / Math.max(1, c.num('rate', L)), extra: { points } };
+                },
+                stats: (sim, c) => {
+                    const per = Math.floor(100 / TF.fruitPerPoint) + TF.bonusPoints;
+                    const outfitHours = TF.outfitPoints / per * Math.max(1, c.num('rate', c.level)) / 60;
+                    return [['Points', Math.floor(sim.extra.points).toLocaleString(), `${per} per 100 fruit`], ["Farmer's outfit", fmtHours(outfitHours), `${TF.outfitPoints} points`]];
+                },
+                noGp: true,
+                notes: c => {
+                    const s = tfSeed(c.level, c.v);
+                    return [(c.level < TF.seeds[0].level ? `<span class="warn">Tithe Farm needs ${TF.seeds[0].level} Farming.</span> ` : '')
+                        + `${esc(s.seed)}s: ${s.harvest} XP to harvest and ${s.deposit} to deposit each fruit, double for the 75th–100th in a sack, plus ${s.bonus.toLocaleString()} at the 75th. That's ${GE.fmtGp(tfXp100(s, c.v.outfit))} XP per 100 fruit.`
+                        + ` The outfit adds ${TF.outfitBoost}% (not to the bonus).`, 'Tithe Farm pays in points, not GP.'];
+                }
+            },
+            {
+                key: 'pickpocketing', name: 'Pickpocketing', skill: 'thieving', min: PP.npcs[0].level, icon: 'Ranarr seed', units: ['pickpocket', 'pickpockets'], data: PP,
+                inputs: [
+                    { id: 'npc', label: 'Pickpocket', type: 'select', def: 'Master Farmer', options: () => PP.npcs.map(n => [n.name, `${n.name} (level ${n.level})`]) },
+                    { id: 'gear', label: 'Success boost', type: 'select', def: 'Normal', options: v => ppNpc(v).chart.map(g => [g.label, g.label === 'Normal' ? 'None' : g.label + (g.req > ppNpc(v).level ? ` (level ${g.req})` : '')]) },
+                    { id: 'rogue', label: 'Rogue outfit', type: 'check', def: true, text: 'Full rogue outfit (double loot)' },
+                    { id: 'farming', label: 'Farming level (herb seeds)', type: 'level', skill: 'farming', def: 85, show: v => ppNpc(v).name === 'Master Farmer' },
+                    { id: 'rate', label: 'Successful pickpockets per hour', type: 'rate', auto: c => ppNpc(c.v).perHour,
+                        hint: c => `From the wiki's money making guide, written for high levels with ${ppNpc(c.v).name === 'Vyre' ? 'few' : 'no'} failures; lower it if you fail often` }
+                ],
+                unit(L, c) {
+                    const n = ppNpc(c.v), double = c.v.rogue ? 2 : 1;
+                    const special = (PP.herbChance.base + Math.min(PP.herbChance.cap, c.lvl('farming'))) / 1000;
+                    const loot = n.loot.map(l => {
+                        let p = l.p;
+                        const herb = n.name === 'Master Farmer' && PP.herbSeeds.find(s => s.item === l.item);
+                        if (herb) p = PP.herbTable * (herb.item === 'Guam seed' ? herb.num / herb.den + PP.guamExtra / 1000 - special : herb.num / herb.den * special);
+                        return [l.item, p * avg(l) * (l.item === 'Rocky' ? 1 : double)];
+                    });
+                    return { xp: { thieving: n.xp }, loot, rate: c.rate(L) };
+                },
+                stats: (sim, c) => {
+                    const n = ppNpc(c.v), g = n.chart.find(x => x.label === c.v.gear) || n.chart[0];
+                    const p = interp(g.low, g.high, c.level);
+                    return [['Success chance', (p * 100).toFixed(1) + '%', `at ${c.level} Thieving · stun ${n.stun}, ${n.damage} damage on a fail`]];
+                },
+                notes: c => {
+                    const n = ppNpc(c.v), g = n.chart.find(x => x.label === c.v.gear) || n.chart[0], out = [];
+                    if (c.level < n.level) out.push(`<span class="warn">${esc(n.name)}s need ${n.level} Thieving.</span>`);
+                    if (c.level < g.req) out.push(`<span class="warn">${esc(g.label)} needs level ${g.req}.</span>`);
+                    out.push(`${n.xp} Thieving XP per successful pickpocket. The success chance follows the wiki's chart for your level and boost; failures cost time and food, which isn't counted.`);
+                    if (n.name === 'Master Farmer') out.push('Ranarr, snapdragon and torstol seeds get more likely with Farming level, up to 85 (the wiki calculator\'s formula).');
+                    out.push('The full rogue outfit doubles the loot (coin pouches pay their coins twice).');
+                    return out;
+                }
+            },
+            {
+                key: 'zmi', name: 'Ourania Altar (ZMI)', skill: 'runecrafting', min: 1, icon: 'Blood rune', units: ['essence', 'essence'], data: ZM,
+                inputs: [
+                    { id: 'essence', label: 'Essence', type: 'select', def: 'Pure essence', options: () => [['Pure essence', 'Pure essence'], ['Daeyalt essence', `Daeyalt essence (${ZM.daeyalt}× XP)`]] },
+                    { id: 'raiments', label: 'Raiments of the Eye', type: 'select', def: '0', options: () => [0, 1, 2, 3, 4].map(n => [String(n), n === 0 ? 'None' : n === 4 ? 'Full set (+60% runes)' : `${n} piece${n > 1 ? 's' : ''} (+${n * 10}% runes)`]) },
+                    { id: 'lantern', label: 'Abyssal lantern', type: 'select', def: 'None', options: () => [['None', 'None']].concat(Object.entries(ZM.lantern).map(([k, l]) => [k, `${k} logs (+${Math.round((l.mult - 1) * 100)}% ${l.rune ? l.rune.toLowerCase() + 's' : 'runes'})`])) },
+                    { id: 'diary', label: 'Ardougne diary', type: 'check', def: false, text: 'Medium Ardougne diary (more runes)' },
+                    { id: 'trip', label: 'Trip costs', type: 'check', def: true, text: 'Banking runes, teleports and stamina' },
+                    { id: 'rate', label: 'Essence per hour', type: 'rate', auto: () => ZM.perHour, hint: () => 'From the wiki\'s money making guide (70+ Runecraft)' }
+                ],
+                unit(L, c) {
+                    const band = ZM.bands[L >= 99 ? 10 : Math.floor(L / 10)];
+                    const r = +c.v.raiments || 0;
+                    const loot = ZM.runes.map((rune, i) => {
+                        const lan = ZM.lantern[c.v.lantern];
+                        const mult = (1 + (c.v.diary ? rune.diary / 100 : 0) + r / 10 + (r === 4 ? 0.2 : 0)) * (lan && (!lan.rune || lan.rune === rune.rune) ? lan.mult : 1);
+                        return [rune.rune, band[i + 1] * mult];
+                    });
+                    const cost = [[c.v.essence, 1]].concat(c.v.trip ? ZM.tripCosts : []);
+                    return { xp: { runecrafting: band[0] * (c.v.essence === 'Daeyalt essence' ? ZM.daeyalt : 1) }, loot, cost, rate: c.rate(L) };
+                },
+                notes: () => ['XP and the rune mix per essence come from the wiki calculator, in bands of 10 levels (99 is its own). The diary, the Raiments of the Eye and the abyssal lantern add runes but no XP.',
+                    'Trip costs are the money making guide\'s per-essence figures (runes paid to the banker, the Ourania Teleport, stamina potions).']
+            },
+            {
+                key: 'sepulchre', name: 'Hallowed Sepulchre', skill: 'agility', min: HS.floors[0].level, icon: 'Strange old lockpick (full)', units: ['run', 'runs'], data: HS,
+                inputs: [
+                    { id: 'floor', label: 'Down to floor', type: 'select', def: '5', options: () => HS.floors.map(f => [String(f.floor), `Floor ${f.floor} (level ${f.level})`]) },
+                    { id: 'loot', label: 'Coffins', type: 'check', def: true, text: 'Loot the coffins worth looting', show: v => +v.floor >= 3 },
+                    { id: 'rate', label: 'Runs per hour', type: 'rate', auto: c => { const f = hsFloor(c.v); return f.perHour && c.v.loot ? f.perHour : Math.round(f.xpH / f.total * 10) / 10; },
+                        hint: c => { const f = hsFloor(c.v); return f.perHour && c.v.loot ? 'From the wiki\'s money making guide for this floor' : `The wiki's ${f.xpH.toLocaleString()} XP an hour without looting ÷ ${f.total.toLocaleString()} XP a run`; } }
+                ],
+                unit(L, c) {
+                    const f = hsFloor(c.v), looting = c.v.loot && f.loot;
+                    return { xp: { agility: f.total }, loot: looting ? Object.entries(f.loot) : [], cost: looting ? Object.entries(f.cost) : [], rate: c.rate(L) };
+                },
+                notes: c => {
+                    const f = hsFloor(c.v), out = [];
+                    if (c.level < f.level) out.push(`<span class="warn">Floor ${f.floor} needs ${f.level} Agility.</span>`);
+                    out.push(`A run to floor ${f.floor} gives ${f.total.toLocaleString()} Agility XP (the floors' XP added up); the wiki's realistic rates are ${f.lootXpH.toLocaleString()} an hour looting and ${f.xpH.toLocaleString()} without.`);
+                    if (f.loot) out.push(`Loot and supplies per run are the money making guide's for floor ${f.floor} (coffins need ${HS.thieving} Thieving). Hallowed marks are shown as a count; Thieving XP from coffins isn't counted.`);
+                    else out.push('The wiki says looting floors 1 and 2 isn\'t worth it, so there\'s no loot here.');
+                    return out;
+                }
+            },
+            {
+                key: 'blastMine', name: 'Blast mine', skill: 'mining', min: BM.minLevel, icon: 'Dynamite', units: ['dynamite', 'dynamite'], data: BM,
+                inputs: [
+                    { id: 'rate', label: 'Dynamite per hour', type: 'rate', auto: () => BM.perHour, hint: () => 'The Blast mine page\'s assumption' }
+                ],
+                unit(L, c) {
+                    // XP per dynamite from the page's hourly rates at its own pace
+                    return { xp: { mining: between(BM.xpPerHour, L) / BM.perHour, firemaking: BM.fmPerHour / BM.perHour }, loot: BM.ores, cost: [['Dynamite', 1]], rate: c.rate(L) };
+                },
+                notes: c => [
+                    (c.level < BM.minLevel ? `<span class="warn">Blast mining needs ${BM.minLevel} Mining.</span> ` : '')
+                    + `The page gives about ${BM.xpPerHour[0][1].toLocaleString()} Mining XP an hour at level ${BM.xpPerHour[0][0]} and ${BM.xpPerHour[1][1].toLocaleString()} at 99 (${BM.perHour} dynamite an hour); levels between are interpolated${c.level < BM.xpPerHour[0][0] ? ', and below ' + BM.xpPerHour[0][0] + ' the level ' + BM.xpPerHour[0][0] + ' rate is used, so it\'s optimistic' : ''}.`,
+                    'Ores per dynamite are the money making guide\'s averages for a high-level player; lower levels get fewer high-tier ores.'
+                ]
+            },
+            {
+                key: 'valeTotems', name: 'Vale Totems', skill: 'fletching', min: VT.logs[0].level, icon: 'Redwood logs', units: ['totem', 'totems'], data: VT,
+                inputs: [
+                    { id: 'log', label: 'Logs', type: 'select', def: 'auto', options: () => [['auto', 'Best for my Fletching level']].concat(VT.logs.map(l => [l.type, `${l.log} (level ${l.level})`])) },
+                    { id: 'decs', label: 'Decorations per totem', type: 'select', def: '4', options: () => [0, 1, 2, 3, 4].map(n => [String(n), String(n)]) },
+                    { id: 'deco', label: 'Decoration', type: 'select', def: 'auto', options: v => [['auto', 'Most XP for my level']].concat(VT.decorations.filter(d => v.log === 'auto' || d.type === v.log).map(d => [d.item, `${d.item} (level ${d.level})`])) },
+                    { id: 'fletch', label: 'Decorations', type: 'check', def: true, text: 'Fletch them myself (more XP)' },
+                    { id: 'points', label: 'Research points', type: 'check', def: true, text: `Spend them on ent branches (${VT.branchPoints} points each)` },
+                    { id: 'rate', label: 'Totems per hour', type: 'rate', auto: () => VT.perHour, hint: () => 'The strategy guide\'s standard (13 loops of 8 totems)' }
+                ],
+                unit(L, c) {
+                    const log = c.v.log === 'auto' ? VT.logs.filter(l => l.level <= L).pop() || VT.logs[0] : VT.logs.find(l => l.type === c.v.log);
+                    const dec = +c.v.decs || 0;
+                    const options = VT.decorations.filter(d => d.type === log.type);
+                    const deco = (c.v.deco !== 'auto' && options.find(d => d.item === c.v.deco))
+                        || options.filter(d => d.level <= L).sort((a, b) => b.xp - a.xp)[0] || options[0];
+                    const xp = log.baseXp * 4 + dec * log.perXp + (c.v.fletch ? dec * deco.xp : 0);
+                    const offerings = VT.offerings[VT.logs.indexOf(log)][dec] * log.visits;
+                    const rummages = offerings / VT.perPoint;
+                    const loot = [];
+                    for (const r of VT.rummage) {
+                        if (r.from != null && (L < r.from || L > r.to)) continue;
+                        const q = r.nest ? (L >= VT.twoNestsAt ? 2 : 1) : avg(r);
+                        loot.push([r.item.replace(/^Bird nest \(egg\)#(\w+) egg$/, (m, colour) => `Bird nest (${colour.toLowerCase()} egg)`), rummages * r.p * q]);
+                    }
+                    if (c.v.points) loot.push(['Ent branch', rummages / VT.branchPoints]);
+                    const cost = [[log.log, 1 + (c.v.fletch ? dec * deco.logs : 0)]];
+                    if (c.v.fletch && deco.string && dec) cost.push(['Bow string', dec]);
+                    if (!c.v.fletch && dec) cost.push([deco.item, dec]);
+                    return { xp: { fletching: xp }, loot, cost, rate: c.rate(L), extra: { offerings, points: rummages } };
+                },
+                stats: sim => [['Research points', Math.floor(sim.extra.points).toLocaleString(), `${Math.round(sim.extra.offerings).toLocaleString()} offerings`]],
+                notes: c => {
+                    const out = [];
+                    if (c.v.log !== 'auto') { const log = VT.logs.find(l => l.type === c.v.log); if (c.level < log.level) out.push(`<span class="warn">${esc(log.log)} totems need ${log.level} Fletching.</span>`); }
+                    out.push('XP per totem follows the wiki calculator: 4 carvings plus each decoration, assuming the right spirits are carved. Every 100 offerings rummage into a research point and one roll on the offerings table (seeds by Fletching level).');
+                    if (c.v.points) out.push(`Research points are counted as ent branches (${VT.branchPoints} points each), as the wiki calculator does.`);
+                    return out;
+                }
+            },
+            {
+                key: 'pyramidPlunder', name: 'Pyramid Plunder', skill: 'thieving', min: PL.rooms[0].level, icon: "Pharaoh's sceptre (uncharged)", units: ['run', 'runs'], data: PL,
+                inputs: [
+                    { id: 'chest', label: 'Loot golden chests from room', type: 'select', def: '1', options: () => PL.rooms.map(r => [String(r.room), `Room ${r.room}`]) },
+                    { id: 'sarc', label: 'Loot sarcophagi from room', type: 'select', def: '4', options: () => PL.rooms.map(r => [String(r.room), `Room ${r.room}`]).concat([['9', 'Never']]) },
+                    { id: 'rate', label: 'Runs per hour', type: 'rate', auto: () => 60 / PL.minutes, hint: () => `The ${PL.minutes}-minute timer allows at most this many` },
+                    { id: 'xph', label: 'Thieving XP per hour', type: 'rate', auto: (c, L) => Math.round(between(PL.xpPerHour, L)), hint: () => `The wiki's ${PL.xpPerHour.map(([l, x]) => `${GE.fmtGp(x)} at ${l}`).join(' and ')}; between them it's interpolated` }
+                ],
+                unit(L, c) {
+                    const rooms = PL.rooms.filter(r => r.level <= L).length;
+                    let p = 0;
+                    for (let i = 0; i < rooms; i++) {
+                        if (i + 1 >= +c.v.chest) p += PL.chances[i];
+                        if (i + 1 >= +c.v.sarc) p += PL.chances[i];
+                    }
+                    const rate = c.rate(L);
+                    return { xp: { thieving: c.num('xph', L) / rate }, loot: [["Pharaoh's sceptre (uncharged)", p]], rate, extra: { rooms } };
+                },
+                stats: (sim, c) => {
+                    const p = sim.loot["Pharaoh's sceptre (uncharged)"] / Math.max(1, sim.units);
+                    return [['Sceptre per run', p ? '1/' + Math.round(1 / p).toLocaleString() : '—', `${PL.rooms.filter(r => r.level <= c.level).length} rooms at level ${c.level}`]];
+                },
+                notes: c => [
+                    (c.level < PL.rooms[0].level ? `<span class="warn">Pyramid Plunder needs ${PL.rooms[0].level} Thieving.</span> ` : '')
+                    + 'The sceptre chance per golden chest and sarcophagus comes from the wiki calculator, room by room up to the last room your level opens. Finding it ends the run.',
+                    `Artefacts aren't counted: the wiki has no drop rates for them. Below ${PL.xpPerHour[0][0]} Thieving the XP rate is the level ${PL.xpPerHour[0][0]} figure, so it's optimistic.`
+                ]
+            },
+            {
+                key: 'hespori', name: 'Hespori', skill: 'farming', min: HE.minLevel, icon: 'Attas seed', units: ['Hespori', 'Hespori'], data: HE,
+                inputs: [
+                    { id: 'outfit', label: "Farmer's outfit", type: 'check', def: false, text: "Wearing the farmer's outfit" },
+                    { id: 'rate', label: 'Hours to grow', type: 'rate', auto: () => HE.growMinutes / 60, hint: () => 'The Farming info time; it grows in 22–32 hours depending on when it\'s planted' }
+                ],
+                unit(L, c) {
+                    const loot = HE.table.map(r => [r.item, r.p * avg(r)]);
+                    loot.push(['Tangleroot', 1 / (HE.pet.base - Math.min(99, L) * HE.pet.step)]);
+                    return { xp: { farming: c.v.outfit ? HE.outfitXp : HE.xp }, loot, rate: 1 / Math.max(0.1, c.num('rate', L)) };
+                },
+                notes: c => [(c.level < HE.minLevel ? `<span class="warn">Hespori needs ${HE.minLevel} Farming.</span> ` : '')
+                    + `Each kill gives ${HE.xp.toLocaleString()} Farming XP when you harvest the patch, one roll on the anima seed table and one on the main table. Time is the wait for it to grow, one at a time.`,
+                    'The Tangleroot chance improves with Farming level (the wiki\'s formula). Hespori seeds aren\'t on the GE, so they aren\'t costed.']
+            },
+            {
+                key: 'zalcano', name: 'Zalcano', skill: null, icon: 'Crystal tool seed', units: ['kill', 'kills'], data: ZA,
+                inputs: [
+                    { id: 'basis', label: 'Loot quantities', type: 'select', def: 'guide', options: () => [['guide', 'Money making guide average (team kills)'], ['lo', 'Low end of the drop ranges'], ['mid', 'Middle of the drop ranges'], ['hi', 'High end (top contribution)']] },
+                    { id: 'mvp', label: 'MVP', type: 'check', def: false, text: 'MVP (+10% non-unique loot)' },
+                    { id: 'rate', label: 'Kills per hour', type: 'rate', auto: () => ZA.perHour, hint: () => 'From the wiki\'s money making guide' }
+                ],
+                unit(L, c) {
+                    const basis = c.v.basis, mvp = c.v.mvp;
+                    const loot = [];
+                    for (const r of ZA.table) {
+                        const unique = r.p < 0.01 || r.p === 1;
+                        let q;
+                        if (r.item === 'Infernal ashes') q = mvp ? 1 : 0;
+                        else if (r.item === 'Crystal shard') q = mvp ? 3 : 2;
+                        else if (basis === 'guide' && r.guide != null) q = r.guide;
+                        else q = r.p * (basis === 'lo' ? r.lo : basis === 'hi' ? r.hi : avg(r));
+                        if (mvp && !unique) q *= 1 + ZA.mvpBonus / 100;
+                        if (q) loot.push([r.item, q]);
+                    }
+                    return { xp: {}, loot, rate: c.rate(L) };
+                },
+                notes: () => [`Loot scales with your contribution. The drop table's ranges are crowd-sourced; the money making guide's averages fit a typical team kill. Crystal shards: 2 when eligible for uniques, 3 as MVP; infernal ashes go to the MVP.`,
+                    'Choosing Mining XP instead of loot (talk to Rhiannon) isn\'t modelled: the wiki has no confirmed XP formula.']
+            }
+        ];
+        function bfBar(v) { return BF.bars.find(b => b.name === v.bar) || BF.bars[0]; }
+        function ppNpc(v) { return PP.npcs.find(n => n.name === v.npc) || PP.npcs[0]; }
+        function hsFloor(v) { return HS.floors.find(f => String(f.floor) === String(v.floor)) || HS.floors[HS.floors.length - 1]; }
+        function sgMethod(v) { return SG.methods.find(m => m.key === v.method) || SG.methods[0]; }
+
+        // ---------- State ----------
+        const params = new URLSearchParams(location.search);
+        const state = {
+            calc: CALCS.some(x => x.key === params.get('calc')) ? params.get('calc') : 'blastFurnace',
+            xp: {},                   // current XP per skill (typed or from the hiscores)
+            tgt: {},                  // target XP per skill
+            values: {},               // calculator inputs, kept when switching
+            amount: {}, goal: {},
+            sort: { col: 'total', dir: 'desc' }
+        };
+        let player = null;
+        const calc = () => CALCS.find(x => x.key === state.calc);
+        const clampXp = xp => Math.max(0, Math.min(OSRS.MAX_XP, Math.floor(xp) || 0));
+        // Typed or loaded XP; until then the activity's own requirement
+        const curXp = () => state.xp[calc().skill] ?? OSRS.xpForLevel(calc().min || 1);
+        const tgtXp = () => {
+            const k = calc().skill, cur = curXp();
+            if (state.tgt[k] == null || state.tgt[k] <= cur) {
+                const l = OSRS.levelForXp(cur);
+                return l < OSRS.MAX_LEVEL ? OSRS.xpForLevel(l + 1) : OSRS.MAX_XP;
+            }
+            return state.tgt[k];
+        };
+
+        // A target needs a skill and room to grow; otherwise it's a set amount
+        const goalOf = x => !x.skill || curXp() >= OSRS.MAX_XP ? 'amount' : (state.goal[x.key] || 'target');
+
+        // ---------- Picker ----------
+        function renderPicker() {
+            $('mgPicker').innerHTML = CALCS.map(x => {
+                const it = x.icon && itemFor(x.icon);
+                const icon = it ? GE.imgTag(it, 22) : `<img src="${OSRS.iconUrl(x.skill || 'mining')}" width="20" height="20" alt="">`;
+                const sk = x.skill ? `<img class="sk" src="${OSRS.iconUrl(x.skill)}" width="14" height="14" alt="" title="${esc(OSRS.skillName(x.skill))}">` : '';
+                return `<button class="calc-skill${x.key === state.calc ? ' active' : ''}" data-calc="${x.key}" title="${esc(x.name)}">${icon}<span class="nm">${esc(x.name)}</span>${sk}</button>`;
+            }).join('');
+            $('mgPicker').querySelectorAll('.calc-skill').forEach(b => b.onclick = () => select(b.dataset.calc));
+        }
+
+        // ---------- Inputs ----------
+        function values() {
+            const x = calc();
+            const v = state.values[x.key] = state.values[x.key] || {};
+            for (const inp of x.inputs) {
+                if (v[inp.id] !== undefined) continue;
+                if (inp.type === 'level') v[inp.id] = levelFromPlayer(inp.skill) ?? inp.def;
+                else if (inp.type === 'rate') v[inp.id] = '';
+                else v[inp.id] = inp.def;
+            }
+            return v;
+        }
+        function levelFromPlayer(skill) {
+            const s = player && player.latestSnapshot.data.skills[skill];
+            return s && s.experience >= 0 ? OSRS.levelForXp(s.experience, 99) : null;
+        }
+
+        function context() {
+            const x = calc(), v = values();
+            const c = {
+                v, level: Math.min(99, OSRS.levelForXp(curXp(), 99)),
+                lvl: skill => {
+                    const inp = x.inputs.find(i => i.type === 'level' && i.skill === skill);
+                    if (inp) return clamp(Math.floor(+v[inp.id] || 1), 1, 99);
+                    if (skill === x.skill) return c.level;
+                    return levelFromPlayer(skill) || 1;
+                },
+                // A typed number, or the input's automatic (wiki) value at level L
+                num: (id, L) => {
+                    const typed = parseFloat(String(v[id] ?? '').replace(/,/g, ''));
+                    if (Number.isFinite(typed) && typed > 0) return typed;
+                    const inp = x.inputs.find(i => i.id === id);
+                    return inp && inp.auto ? inp.auto(c, L ?? c.level) : 0;
+                }
+            };
+            c.rate = L => Math.max(1e-6, c.num('rate', L));
+            return c;
+        }
+
+        function renderInputs() {
+            const x = calc(), v = values(), c = context();
+            $('mgInputs').innerHTML = x.inputs.map(inp => {
+                if (inp.show && !inp.show(v)) return '';
+                const id = 'in_' + inp.id;
+                if (inp.type === 'select') {
+                    return `<label class="calc-field"><span>${esc(inp.label)}</span><select id="${id}" data-in="${inp.id}">${inp.options(v).map(([val, text]) =>
+                        `<option value="${esc(val)}"${String(v[inp.id]) === String(val) ? ' selected' : ''}>${esc(text)}</option>`).join('')}</select></label>`;
+                }
+                if (inp.type === 'check') {
+                    return `<div class="calc-field check"><span>${esc(inp.label)}</span><label class="checkbox-label"><input type="checkbox" id="${id}" data-in="${inp.id}"${v[inp.id] ? ' checked' : ''}> ${esc(inp.text)}</label></div>`;
+                }
+                if (inp.type === 'rate') {
+                    const auto = inp.auto(c, c.level);
+                    return `<label class="calc-field"><span>${esc(inp.label)}</span><input type="text" id="${id}" data-in="${inp.id}" value="${esc(v[inp.id])}" placeholder="${esc(fmtNum(auto))} (wiki)" autocomplete="off">`
+                        + `${inp.hint ? `<span class="hint">${inp.hint(c)}</span>` : ''}</label>`;
+                }
+                const attrs = inp.type === 'level' ? 'min="1" max="99"' : `min="${inp.min ?? 0}" max="${inp.max ?? ''}"`;
+                return `<label class="calc-field"><span>${esc(inp.label)}</span><input type="number" id="${id}" data-in="${inp.id}" ${attrs} value="${esc(v[inp.id])}"></label>`;
+            }).join('');
+            $('mgInputs').style.display = $('mgInputs').innerHTML ? '' : 'none';
+            $('mgInputs').querySelectorAll('[data-in]').forEach(el => {
+                el.addEventListener(el.type === 'text' ? 'input' : 'change', () => {
+                    const inp = x.inputs.find(i => i.id === el.dataset.in);
+                    v[inp.id] = el.type === 'checkbox' ? el.checked : el.value;
+                    if (el.type !== 'text') renderInputs();          // dependent fields and hints
+                    render();
+                });
+            });
+        }
+
+        // ---------- Level / XP / goal fields ----------
+        function syncGoal() {
+            const x = calc(), hasSkill = !!x.skill;
+            const goal = goalOf(x);
+            $('mgGoal').value = goal;
+            $('mgGoal').disabled = goal !== (state.goal[x.key] || 'target') || !hasSkill;
+            $('mgCurField').style.display = hasSkill ? '' : 'none';
+            $('mgTgtField').style.display = hasSkill && goal === 'target' ? '' : 'none';
+            $('mgAmountField').style.display = goal === 'amount' ? '' : 'none';
+            if (hasSkill) {
+                $('mgCurLabel').textContent = `Current ${OSRS.skillName(x.skill)} level / XP`;
+                $('mgCurLvl').value = OSRS.levelForXp(curXp());
+                $('mgCurXp').value = curXp().toLocaleString();
+                $('mgTgtLvl').value = OSRS.levelForXp(tgtXp());
+                $('mgTgtXp').value = tgtXp().toLocaleString();
+            }
+            $('mgAmountLabel').textContent = 'Number of ' + x.units[1];
+            $('mgAmount').value = state.amount[x.key] ?? '';
+            const c = context();
+            $('mgAmount').placeholder = fmtNum(Math.round(x.unit(c.level, c).rate)) + ' (one hour)';
+        }
+        function setCur(xp) { const k = calc().skill; state.xp[k] = clampXp(xp); syncGoal(); renderInputs(); render(); }
+        function setTgt(xp) { state.tgt[calc().skill] = clampXp(xp); syncGoal(); render(); }
+        $('mgCurLvl').onchange = () => setCur(OSRS.xpForLevel(+$('mgCurLvl').value || 1));
+        $('mgCurXp').onchange = () => setCur(GE.parseGp($('mgCurXp').value));
+        $('mgTgtLvl').onchange = () => setTgt(OSRS.xpForLevel(+$('mgTgtLvl').value || 1));
+        $('mgTgtXp').onchange = () => setTgt(GE.parseGp($('mgTgtXp').value));
+        $('mgQuick').querySelectorAll('button').forEach(b => b.onclick = () => {
+            const t = b.dataset.t;
+            setTgt(t === 'next' ? OSRS.xpForLevel(Math.min(OSRS.MAX_LEVEL, OSRS.levelForXp(curXp()) + 1)) : OSRS.xpForLevel(+t));
+        });
+        $('mgGoal').onchange = () => { state.goal[calc().key] = $('mgGoal').value; syncGoal(); render(); };
+        $('mgAmount').oninput = () => { state.amount[calc().key] = $('mgAmount').value; render(); };
+        $('mgPrices').onchange = () => { renderInputs(); render(); };
+
+        // ---------- Player lookup ----------
+        async function loadPlayer(rsn) {
+            rsn = String(rsn || '').trim();
+            const st = $('mgRsnStatus');
+            if (!rsn) { player = null; st.textContent = ''; return; }
+            if (!OSRS.validRsn(rsn)) { st.className = 'calc-rsn-status error'; st.textContent = OSRS.errorText({ code: 'INVALID_USERNAME' }); return; }
+            st.className = 'calc-rsn-status';
+            st.textContent = 'Loading ' + rsn + '...';
+            try {
+                player = await OSRS.getPlayer(rsn);
+                if (Date.now() - new Date(player.updatedAt).getTime() > 60 * 60 * 1000) {
+                    st.textContent = 'Refreshing ' + player.displayName + ' from the hiscores...';
+                    try { player = await OSRS.updatePlayer(rsn); } catch (e) { /* stored stats are still usable */ }
+                }
+            } catch (e) {
+                player = null;
+                st.className = 'calc-rsn-status error';
+                st.textContent = OSRS.errorText(e);
+                return;
+            }
+            try { localStorage.setItem(RSN_KEY, player.displayName); } catch (e) { /* ignore */ }
+            $('mgRsn').value = player.displayName;
+            st.innerHTML = `${esc(player.displayName)} · updated ${OSRS.timeAgo(player.updatedAt)} · <a href="hiscores.html?rsn=${encodeURIComponent(player.displayName)}">hiscores</a>`;
+            // Every skill's XP, and the level fields of every calculator
+            for (const [k] of OSRS.SKILLS) {
+                const s = player.latestSnapshot.data.skills[k];
+                if (s && s.experience >= 0) state.xp[k] = s.experience;
+            }
+            state.tgt = {};
+            for (const x of CALCS) {
+                const v = state.values[x.key];
+                if (!v) continue;
+                for (const inp of x.inputs) if (inp.type === 'level') { const l = levelFromPlayer(inp.skill); if (l) v[inp.id] = l; }
+            }
+            updateUrl();
+            syncGoal(); renderInputs(); render();
+        }
+        $('mgLoad').onclick = () => loadPlayer($('mgRsn').value);
+        $('mgRsn').onkeydown = e => { if (e.key === 'Enter') { e.preventDefault(); loadPlayer($('mgRsn').value); } };
+
+        function updateUrl() {
+            const q = new URLSearchParams({ calc: state.calc });
+            if (player) q.set('rsn', player.displayName);
+            history.replaceState(null, '', '?' + q);
+        }
+
+        // ---------- Simulation ----------
+        // Adds up units level by level, so XP per unit, loot and rates follow the main skill as it rises
+        function simulate(x, c) {
+            const goal = goalOf(x);
+            const cache = {};
+            const at = L => cache[L] || (cache[L] = x.unit(L, c));
+            const t = { units: 0, hours: 0, xp: {}, loot: {}, cost: {}, fees: {}, gp: 0, extra: {}, first: at(c.level) };
+            const add = (u, n) => {
+                t.units += n; t.hours += n / u.rate;
+                for (const [k, q] of Object.entries(u.xp || {})) t.xp[k] = (t.xp[k] || 0) + q * n;
+                for (const [i, q] of u.loot || []) t.loot[i] = (t.loot[i] || 0) + q * n;
+                for (const [i, q] of u.cost || []) t.cost[i] = (t.cost[i] || 0) + q * n;
+                for (const [i, g] of u.fees || []) t.fees[i] = (t.fees[i] || 0) + g * n;
+                t.gp += (u.gp || 0) * n;
+                for (const [k, q] of Object.entries(u.extra || {})) t.extra[k] = (t.extra[k] || 0) + q * n;
+            };
+            let xp = curXp();
+            const levelAt = xp => Math.min(99, OSRS.levelForXp(xp, 99));
+            if (goal === 'target') {
+                const tgt = tgtXp();
+                if (tgt <= xp) return { done: true };
+                for (let guard = 0; xp < tgt && guard < 200; guard++) {
+                    const L = levelAt(xp), u = at(L), per = (u.xp || {})[x.skill];
+                    if (!per || per <= 0) return { noXp: true };
+                    const next = L < 99 ? Math.min(tgt, OSRS.xpForLevel(L + 1)) : tgt;
+                    const n = Math.ceil((next - xp) / per - 1e-9);
+                    add(u, n);
+                    xp += n * per;
+                }
+            } else {
+                let left = Math.max(0, parseFloat(String(state.amount[x.key] ?? '').replace(/,/g, '')) || Math.max(1, Math.round(at(c.level).rate)));
+                for (let guard = 0; left > 0 && guard < 200; guard++) {
+                    const L = levelAt(xp), u = at(L), per = x.skill ? (u.xp || {})[x.skill] || 0 : 0;
+                    let n = left;
+                    if (per > 0 && L < 99) n = Math.min(left, Math.max(1, Math.ceil((OSRS.xpForLevel(L + 1) - xp) / per - 1e-9)));
+                    add(u, n);
+                    xp += n * per;
+                    left -= n;
+                }
+            }
+            t.endXp = xp;
+            return t;
+        }
+
+        // ---------- Rendering ----------
+        const fmtNum = n => n == null || !Number.isFinite(n) ? '—' : n >= 100 ? Math.round(n).toLocaleString() : n >= 10 ? n.toFixed(1).replace(/\.0$/, '') : n.toFixed(2).replace(/\.?0+$/, '');
+        // Expected quantities: whole numbers once they're large, a few decimals when they're small
+        const fmtQty = q => q >= 100 ? Math.round(q).toLocaleString() : q >= 1 ? q.toFixed(1).replace(/\.0$/, '') : q >= 0.01 ? q.toFixed(2) : q >= 0.001 ? q.toFixed(3) : '<0.001';
+        function fmtHours(h) {
+            if (!Number.isFinite(h)) return '—';
+            if (h < 1) return Math.max(1, Math.round(h * 60)) + 'm';
+            if (h < 100) { const m = Math.round((h % 1) * 60); return Math.floor(h) + 'h' + (m ? ' ' + m + 'm' : ''); }
+            return Math.round(h).toLocaleString() + 'h';
+        }
+        const signed = n => {
+            if (n == null || !Number.isFinite(n)) return '<span class="muted">—</span>';
+            const cls = n > 0 ? 'positive' : n < 0 ? 'negative' : 'neutral';
+            return `<span class="${cls}">${n > 0 ? '+' : n < 0 ? '−' : ''}${GE.fmtGp(Math.round(Math.abs(n)))}</span>`;
+        };
+        const chance = q => q >= 5 ? '' : (() => { const p = 1 - Math.exp(-q); return p > 0.9995 ? '≈100%' : (p * 100 >= 10 ? (p * 100).toFixed(0) : (p * 100).toFixed(1)) + '%'; })();
+        const statCard = (label, value, sub) => `<div class="stat-card"><div class="stat-label">${label}</div><div class="stat-value">${value}</div><div class="stat-sub">${sub || ''}</div></div>`;
+
+        function itemCell(name, note) {
+            const it = itemFor(name);
+            // Coins aren't a GE item, so there's no local icon; use the wiki's
+            const icon = it ? GE.imgTag(it, 22) : name === 'Coins' ? `<img src="${GE.WIKI_IMG}Coins_10000.png" width="22" height="22" class="item-icon" loading="lazy" alt="">`
+                : `<span class="item-icon-fallback" style="width:22px;height:22px">${esc(name[0])}</span>`;
+            const label = it ? `<a href="item.html?id=${it.id}">${esc(name)}</a>` : esc(name);
+            return `<div class="item-cell">${icon}<span class="item-name">${label}</span>${note ? `<span class="tag-sm">${note}</span>` : ''}${GE.wikiLink(it ? it.name : name.replace(/#.*/, ''))}</div>`;
+        }
+
+        function lootTable(sim, x) {
+            const rows = Object.entries(sim.loot).filter(([, q]) => q > 1e-9).map(([name, qty]) => {
+                const v = valueOf(name);
+                return { name, qty, each: v.net, total: v.net == null ? null : v.net * qty, container: v.container };
+            });
+            const { col, dir } = state.sort, d = dir === 'asc' ? 1 : -1;
+            rows.sort((a, b) => col === 'name' ? a.name.localeCompare(b.name) * d
+                : (a[col] == null) - (b[col] == null) || ((a[col] ?? 0) - (b[col] ?? 0)) * d || b.qty - a.qty);
+            const total = rows.reduce((s, r) => s + (r.total || 0), 0) + sim.gp;
+            const th = (k, label, num) => `<th data-sort="${k}" class="${num ? 'num ' : ''}${col === k ? 'sorted-' + dir : ''}">${label}</th>`;
+            let h = `<div class="card"><div class="card-header"><span class="card-title">Loot</span><span class="card-badge badge-white">${fmtNum(sim.units)} ${sim.units === 1 ? x.units[0] : x.units[1]}</span></div>`;
+            h += '<div class="table-wrap"><table class="calc-table"><thead><tr>' + th('name', 'Item') + th('qty', 'Qty', 1) + '<th class="num" style="cursor:default">Chance of 1+</th>' + th('each', 'Each (net)', 1) + th('total', 'Total', 1) + '</tr></thead><tbody>';
+            if (sim.gp) h += `<tr><td>${itemCell('Coins', 'reward')}</td><td class="num">${Math.round(sim.gp).toLocaleString()}</td><td></td><td class="num">1</td><td class="num">${signed(sim.gp)}</td></tr>`;
+            for (const r of rows) {
+                h += `<tr><td>${itemCell(r.name, r.container ? 'contents' : '')}</td><td class="num">${fmtQty(r.qty)}</td><td class="num muted"${chance(r.qty) ? '' : ' data-label=""'}>${chance(r.qty)}</td>`
+                    + `<td class="num">${r.each == null ? '<span class="muted">not on GE</span>' : (r.container ? '≈' : '') + GE.fmtGp(Math.round(r.each))}</td><td class="num">${signed(r.total)}</td></tr>`;
+            }
+            if (!rows.length && !sim.gp) h += '<tr><td colspan="5" class="muted">No loot</td></tr>';
+            h += `</tbody></table></div><div class="mg-total"><span>Total after 2% tax</span><span>${signed(total)}</span></div></div>`;
+            return { html: h, total };
+        }
+
+        function costTable(sim) {
+            const rows = Object.entries(sim.cost).filter(([, q]) => q > 1e-9).map(([name, qty]) => {
+                const p = buyPrice(name);
+                return { name, qty, each: p, total: p == null ? null : p * qty };
+            }).sort((a, b) => (b.total ?? -1) - (a.total ?? -1));
+            const fees = Object.entries(sim.fees);
+            if (!rows.length && !fees.length) return { html: '', total: 0, unknown: false };
+            let total = 0, unknown = false;
+            let h = '<div class="card"><div class="card-header"><span class="card-title">Supplies</span></div><div class="table-wrap"><table class="calc-table"><thead><tr><th style="cursor:default">Item</th><th class="num" style="cursor:default">Qty</th><th class="num" style="cursor:default">Each</th><th class="num" style="cursor:default">Cost</th></tr></thead><tbody>';
+            for (const r of rows) {
+                if (r.total == null) unknown = true; else total += r.total;
+                h += `<tr><td>${itemCell(r.name)}</td><td class="num">${fmtQty(Math.ceil(r.qty - 1e-9))}</td><td class="num">${r.each == null ? '<span class="muted">not on GE</span>' : GE.fmtGp(r.each)}</td><td class="num">${r.total == null ? '<span class="muted">—</span>' : signed(-r.total)}</td></tr>`;
+            }
+            for (const [label, gp] of fees) {
+                total += gp;
+                h += `<tr><td><div class="item-cell"><span class="item-name muted" title="${esc(label)}">${esc(label)}</span></div></td><td class="num">${Math.round(gp).toLocaleString()}</td><td class="num">1</td><td class="num">${signed(-gp)}</td></tr>`;
+            }
+            h += `</tbody></table></div><div class="mg-total"><span>Total</span><span>${signed(-total)}</span></div></div>`;
+            return { html: h, total, unknown };
+        }
+
+        function render() {
+            const x = calc(), c = context();
+            $('mgTitle').textContent = x.name + ' Calculator';
+            const sim = simulate(x, c);
+            const note = (x.notes ? x.notes(c) : []);
+            $('mgSources').innerHTML = 'Sources (OSRS Wiki): ' + x.data.src.map(p => {
+                const r = D.revisions[p];
+                return wikiLink(p) + (r ? ` <span title="Revision ${r.rev}">(${r.date})</span>` : '');
+            }).join(' · ') + ` · data built ${D.built}`;
+            if (sim.done || sim.noXp) {
+                $('mgStats').innerHTML = '';
+                $('mgTables').innerHTML = `<div class="card calc-status">${sim.done ? 'Target is already reached — set a higher target, or choose "A set amount" as the goal.' : 'This setup gives no XP in this skill.'}</div>`;
+                $('mgNote').innerHTML = note.join('<br>');
+                return;
+            }
+            const loot = lootTable(sim, x), cost = costTable(sim);
+            $('mgTables').className = 'mg-tables' + (cost.html ? '' : ' single');
+            $('mgTables').innerHTML = loot.html + cost.html;
+            $('mgTables').querySelectorAll('th[data-sort]').forEach(th => th.onclick = () => {
+                const k = th.dataset.sort;
+                state.sort = state.sort.col === k ? { col: k, dir: state.sort.dir === 'asc' ? 'desc' : 'asc' } : { col: k, dir: k === 'name' ? 'asc' : 'desc' };
+                render();
+            });
+
+            const profit = loot.total - cost.total;
+            const mainXp = x.skill ? sim.xp[x.skill] || 0 : 0;
+            const others = Object.entries(sim.xp).filter(([k, q]) => k !== x.skill && q > 0.5).map(([k, q]) => `${GE.fmtGp(Math.round(q))} ${OSRS.skillName(k)}`);
+            const rate = sim.units / Math.max(1e-9, sim.hours);
+            const cards = [
+                statCard(x.skill ? 'XP gained' : 'Loot value', x.skill ? GE.fmtGp(Math.round(mainXp)) : signed(loot.total),
+                    x.skill ? `${GE.fmtGp(Math.round(mainXp / Math.max(1e-9, sim.hours)))} XP/h${others.length ? ' · ' + others.join(', ') : ''}` : 'after 2% tax'),
+                statCard(x.noGp ? 'XP per hour' : 'Profit', x.noGp ? GE.fmtGp(Math.round(mainXp / Math.max(1e-9, sim.hours))) : signed(profit),
+                    x.noGp ? 'no GP from this activity' : cost.unknown ? 'some supplies have no GE price' : 'after 2% tax'),
+                statCard(x.units[1][0].toUpperCase() + x.units[1].slice(1), fmtNum(sim.units), `${fmtNum(rate)} an hour`),
+                statCard('Time', fmtHours(sim.hours), !x.skill ? 'of play' : goalOf(x) === 'target' ? `to level ${OSRS.levelForXp(tgtXp())}` : `level ${OSRS.levelForXp(sim.endXp)} at the end`)
+            ];
+            if (!x.noGp) cards.push(statCard('GP / hour', signed(profit / Math.max(1e-9, sim.hours)), x.skill && mainXp ? `${(profit / mainXp).toFixed(2)} GP/XP` : ''));
+            for (const [label, value, sub] of (x.stats ? x.stats(sim, c) : [])) cards.push(statCard(label, value, sub));
+            $('mgStats').innerHTML = cards.join('');
+            $('mgNote').innerHTML = note.concat(['Loot is the expected (average) amount. Sell values take the 2% GE tax off; items that aren\'t on the GE show their quantity only.']).join('<br>');
+        }
+
+        function select(key) {
+            state.calc = key;
+            state.sort = { col: 'total', dir: 'desc' };
+            renderPicker();
+            updateUrl();
+            syncGoal();
+            renderInputs();
+            render();
+        }
+
+        // ---------- Boot ----------
+        renderPicker();
+        select(state.calc);
+        const rsn = params.get('rsn') || (() => { try { return localStorage.getItem(RSN_KEY); } catch (e) { return null; } })();
+        if (rsn) { $('mgRsn').value = rsn; loadPlayer(rsn); }
+        window.__mg = { CALCS, state, context, simulate, select, valueOf, buyPrice, loadPlayer };   // for the self-check
+    })();
+    </script>
+</body>
+</html>
