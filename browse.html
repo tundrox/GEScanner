@@ -27,13 +27,13 @@
             <p class="page-subtitle">Search and filter all Old School RuneScape tradeable items</p>
         </div>
 
-        <div class="search-bar">
-            <input type="text" id="searchInput" placeholder="Search by item name...">
-        </div>
-
-        <div class="controls">
-            <div class="control-group">
-                <span class="control-label">View:</span>
+        <div class="filters">
+            <label class="field field-grow">
+                <span>Search</span>
+                <input type="text" id="searchInput" placeholder="Search by item name...">
+            </label>
+            <label class="field">
+                <span>View</span>
                 <select id="viewMode">
                     <option value="all">All Items</option>
                     <option value="gainers">Top Gainers</option>
@@ -42,9 +42,9 @@
                     <option value="52high">Highs</option>
                     <option value="52low">Lows</option>
                 </select>
-            </div>
-            <div class="control-group" id="periodGroup">
-                <span class="control-label">Lookback:</span>
+            </label>
+            <label class="field" id="periodGroup">
+                <span>Lookback</span>
                 <select id="periodSelect">
                     <option value="1">24H</option>
                     <option value="7">7D</option>
@@ -54,21 +54,21 @@
                     <option value="180">6M</option>
                     <option value="365">1Y</option>
                 </select>
-            </div>
-            <div class="control-group">
-                <span class="control-label">Filter:</span>
+            </label>
+            <label class="field">
+                <span>Members</span>
                 <select id="memberFilter">
                     <option value="all">All Items</option>
                     <option value="members">Members</option>
                     <option value="f2p">F2P</option>
                 </select>
-            </div>
-            <div class="control-group">
-                <span class="control-label">Min Price:</span>
+            </label>
+            <label class="field">
+                <span>Min Price</span>
                 <input type="text" id="minPrice" value="0" placeholder="e.g. 100k">
-            </div>
-            <div class="control-group">
-                <span class="control-label">Sort:</span>
+            </label>
+            <label class="field">
+                <span>Sort</span>
                 <select id="sortBy">
                     <option value="name">Name</option>
                     <option value="price-desc">Price (High)</option>
@@ -77,10 +77,8 @@
                     <option value="change-desc">Change (Best)</option>
                     <option value="change-asc">Change (Worst)</option>
                 </select>
-            </div>
-            <div class="control-group" style="margin-left:auto">
-                <span id="resultCount" class="control-label" style="color:var(--text-muted)"></span>
-            </div>
+            </label>
+            <span id="resultCount" class="filters-end"></span>
         </div>
 
         <div id="viewStatus" style="display:none"></div>

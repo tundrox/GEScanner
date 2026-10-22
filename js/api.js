@@ -221,6 +221,23 @@ const GE = {
         return Math.min(Math.floor(sellPrice * 0.02), 5000000);
     },
 
+    // Line icons (24×24, stroked) for the nav. On phones the links become a tab bar along the bottom.
+    NAV_ICONS: {
+        Dashboard: '<path d="M3 3h7v9H3zM14 3h7v5h-7zM14 12h7v9h-7zM3 16h7v5H3z"/>',
+        Browse: '<path d="M8 6h13M8 12h13M8 18h13M3.5 6h.01M3.5 12h.01M3.5 18h.01"/>',
+        Scanner: '<path d="M3 12h4l3-8 4 16 3-8h4"/>',
+        Trading: '<path d="M7 4v16M7 4L4 7M7 4l3 3M17 20V4M17 20l-3-3M17 20l3-3"/>',
+        Hiscores: '<path d="M8 21h8M12 17v4M7 4h10v5a5 5 0 01-10 0zM17 6h3v1a3 3 0 01-3 3M7 6H4v1a3 3 0 003 3"/>',
+        Calculators: '<rect x="5" y="3" width="14" height="18" rx="2"/><path d="M8 7h8M8 12h.01M12 12h.01M16 12h.01M8 16h.01M12 16h.01M16 16h.01"/>',
+        search: '<circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/>',
+        close: '<path d="M6 6l12 12M18 6L6 18"/>'
+    },
+
+    navIcon(name, cls) {
+        // width/height keep the icon small even before (or without) style.css
+        return `<svg class="nav-ico${cls ? ' ' + cls : ''}" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">${this.NAV_ICONS[name]}</svg>`;
+    },
+
     navHTML(active) {
         const links = [
             ['index.html', 'Dashboard'],
@@ -233,23 +250,42 @@ const GE = {
         return `<nav class="nav"><div class="nav-inner">
             <a href="index.html" class="nav-logo"><span class="logo-icon">⚔️</span><span>OSRS Hub</span></a>
             <div class="nav-links">${links.map(([h, t]) =>
-                `<a href="${h}" class="nav-link${t === active ? ' active' : ''}">${t}</a>`
+                `<a href="${h}" class="nav-link${t === active ? ' active' : ''}"${t === active ? ' aria-current="page"' : ''}>${this.navIcon(t)}<span>${t}</span></a>`
             ).join('')}</div>
             <div class="nav-search">
-                <input type="text" placeholder="Search items..." id="navSearch" autocomplete="off">
+                <input type="text" placeholder="Search items..." id="navSearch" autocomplete="off" aria-label="Search items">
+                <kbd class="nav-kbd" title="Press / to search">/</kbd>
                 <div class="ac-dropdown" id="acDropdown"></div>
             </div>
+            <button type="button" class="nav-search-btn" id="navSearchBtn" aria-label="Search items">${this.navIcon('search', 'ico-search')}${this.navIcon('close', 'ico-close')}</button>
         </div></nav>`;
     },
 
     initAutocomplete() {
-        // On phones the nav links scroll sideways — keep the current page's link in view
-        const activeLink = document.querySelector('.nav-link.active');
-        if (activeLink) activeLink.scrollIntoView({ block: 'nearest', inline: 'center' });
-
         const input = document.getElementById('navSearch');
         const dropdown = document.getElementById('acDropdown');
         if (!input || !dropdown) return;
+
+        // Phones: the search box replaces the logo while it's open
+        const nav = input.closest('.nav');
+        const searchBtn = document.getElementById('navSearchBtn');
+        const closeSearch = () => { nav.classList.remove('searching'); dropdown.style.display = 'none'; };
+        if (searchBtn) searchBtn.addEventListener('click', () => {
+            if (nav.classList.contains('searching')) { closeSearch(); input.value = ''; return; }
+            nav.classList.add('searching');
+            input.focus();
+        });
+        input.addEventListener('blur', () => { if (!input.value.trim()) setTimeout(closeSearch, 150); });
+
+        // "/" anywhere outside a form field jumps to the search box
+        document.addEventListener('keydown', (e) => {
+            if (e.key !== '/' || e.ctrlKey || e.metaKey || e.altKey) return;
+            const t = e.target;
+            if (t.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName)) return;
+            e.preventDefault();
+            if (getComputedStyle(input).display === 'none' || !input.offsetParent) nav.classList.add('searching');
+            input.focus();
+        });
 
         let acIndex = -1;
         let acItems = [];
@@ -512,6 +548,43 @@ const GE = {
         return { hi, lo, hiT, loT };
     },
 
+    // --- Long lists show SHOW_STEP rows at a time ---
+    // A page keeps how many rows it shows, puts moreHTML() under the list, and bindMore() calls
+    // onMore(extra) when a button is pressed, so the page can render again with more rows.
+    SHOW_STEP: 50,
+    moreHTML(shown, total) {
+        if (shown >= total) return '';
+        const left = total - shown;
+        const next = Math.min(this.SHOW_STEP, left);
+        return `<div class="show-more">
+            <button type="button" class="btn btn-secondary" data-more="${next}">Show ${next} more</button>
+            ${left > next ? `<button type="button" class="btn btn-ghost" data-more="${left}">Show all ${total.toLocaleString()}</button>` : ''}
+            <span>${shown.toLocaleString()} of ${total.toLocaleString()}</span>
+        </div>`;
+    },
+    bindMore(container, onMore) {
+        container.querySelectorAll('.show-more [data-more]').forEach(b => { b.onclick = () => onMore(+b.dataset.more); });
+    },
+
+    // --- Phone tables: each row shows its numbers under their column's name (css: td::before) ---
+    // Every page renders tables as HTML strings, so name the cells here whenever rows appear.
+    labelTables() {
+        document.querySelectorAll('table').forEach(t => {
+            const heads = [...t.querySelectorAll(':scope > thead th')].map(th => th.textContent.trim());
+            if (!heads.length) return;
+            t.querySelectorAll(':scope > tbody > tr').forEach(tr => {
+                [...tr.cells].forEach((td, i) => { if (td.dataset.label === undefined) td.dataset.label = heads[i] || ''; });
+            });
+        });
+    },
+    _watchTables() {
+        let queued = false;
+        const run = () => { queued = false; this.labelTables(); };
+        new MutationObserver(() => { if (!queued) { queued = true; requestAnimationFrame(run); } })
+            .observe(document.body, { childList: true, subtree: true });
+        run();
+    },
+
     // --- Preload common data on every page ---
     _preloaded: null,
     preload() {
@@ -527,3 +600,5 @@ const GE = {
 
 // Start preloading immediately when api.js loads
 GE.preload();
+if (document.body) GE._watchTables();
+else document.addEventListener('DOMContentLoaded', () => GE._watchTables());

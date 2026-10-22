@@ -20,49 +20,21 @@
         };
     </script>
     <style>
-        /* Section headers */
-        .dash-section {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            flex-wrap: wrap;
-            gap: 10px;
-            margin-bottom: 14px;
-            padding-bottom: 8px;
-            border-bottom: 1px solid rgba(255,255,255,0.04);
-        }
-        .dash-section-title {
-            font-size: 0.75rem;
-            text-transform: uppercase;
-            letter-spacing: 0.12em;
-            color: var(--text-secondary);
-            font-weight: 600;
-            display: flex;
-            align-items: center;
-            gap: 8px;
-        }
-        .dash-section-title .dot {
+        .dot {
             width: 5px; height: 5px;
             border-radius: 50%;
             display: inline-block;
+            margin-right: 8px;
+            vertical-align: 2px;
         }
-        .dot-green { background: var(--green); box-shadow: 0 0 6px var(--green); }
-        .dot-red { background: var(--red); box-shadow: 0 0 6px var(--red); }
         .dot-white { background: #ffffff; box-shadow: 0 0 8px rgba(255,255,255,0.3); }
         .dot-blue { background: rgba(255,255,255,0.5); box-shadow: 0 0 6px rgba(255,255,255,0.2); }
 
-        /* Compact table rows */
-        .dash-card table td { padding: 8px 10px; font-size: 0.82rem; }
-        .dash-card table th { padding: 8px 10px; font-size: 0.7rem; }
-
-        .dash-card .card-header { padding: 12px 16px; }
-        .dash-card .card-title { font-size: 0.85rem; }
-
-        /* 52-week when badges */
+        /* Price Extremes "when" badges */
         .when-badge {
             display: inline-block;
-            font-size: 0.7rem;
-            padding: 2px 8px;
+            font-size: 0.68rem;
+            padding: 1px 7px;
             border-radius: 3px;
             font-weight: 500;
         }
@@ -70,15 +42,15 @@
         .when-recent { background: rgba(255,255,255,0.06); color: var(--text-secondary); }
         .when-old { background: rgba(255,255,255,0.03); color: var(--text-muted); }
 
-        /* 3-column layout for bottom */
+        /* Three mover cards side by side; Volume Spikes has an extra column */
         .grid-3-dash {
             display: grid;
-            grid-template-columns: 1fr 1fr 1fr;
-            gap: 16px;
-            margin-bottom: 24px;
+            grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1.2fr);
+            gap: 12px;
+            margin-bottom: 18px;
         }
-        @media (max-width: 1100px) { .grid-3-dash { grid-template-columns: 1fr 1fr; } }
-        @media (max-width: 700px) { .grid-3-dash { grid-template-columns: 1fr; } }
+        @media (max-width: 1100px) { .grid-3-dash { grid-template-columns: repeat(2, minmax(0, 1fr)); } #volumeCard { grid-column: 1 / -1; } }
+        @media (max-width: 700px) { .grid-3-dash { grid-template-columns: minmax(0, 1fr); } }
     </style>
 </head>
 <body>
@@ -90,8 +62,8 @@
         </div>
 
 
-        <div class="dash-section">
-            <span class="dash-section-title"><span class="dot dot-white"></span> Top Movers</span>
+        <div class="section-bar">
+            <span class="section-title"><span class="dot dot-white"></span>Top Movers</span>
             <div class="tf-tabs" id="moverTabs">
                 <button class="tf-tab active" data-days="1">24H</button>
                 <button class="tf-tab" data-days="7">7D</button>
@@ -123,8 +95,8 @@
             </div>
         </div>
 
-        <div class="dash-section">
-            <span class="dash-section-title"><span class="dot dot-blue"></span> Price Extremes</span>
+        <div class="section-bar">
+            <span class="section-title"><span class="dot dot-blue"></span>Price Extremes</span>
             <div class="tf-tabs" id="weekTabs">
                 <button class="tf-tab active" data-days="7">Past Week</button>
                 <button class="tf-tab" data-days="30">Past Month</button>
@@ -132,7 +104,7 @@
                 <button class="tf-tab" data-days="365">Past Year</button>
             </div>
         </div>
-        <div class="grid-2" id="weekSection" style="margin-bottom:24px">
+        <div class="grid-2" id="weekSection">
             <div class="card dash-card" id="highsCard">
                 <div class="card-header">
                     <span class="card-title">Highs</span>

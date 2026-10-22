@@ -24,21 +24,10 @@
     <style>
         .tool-panel { display: none; }
         .tool-panel.active { display: block; }
-        .tool-table-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
-        .tool-table th.sorted-asc::after { content: ' \25B2'; font-size: 0.6rem; }
-        .tool-table th.sorted-desc::after { content: ' \25BC'; font-size: 0.6rem; }
-        .tool-filters {
-            display: flex; flex-wrap: wrap; gap: 12px;
-            align-items: center; margin-bottom: 16px;
-        }
-        .tool-filters label {
-            font-size: 0.75rem; color: var(--text-secondary);
-            display: flex; align-items: center; gap: 6px;
-        }
-        .tool-filters input[type="number"] { width: 100px; }
-        .recent-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 12px; }
+        .recent-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 8px; }
         .recent-empty { text-align: center; padding: 40px 20px; color: var(--text-muted); font-size: 0.9rem; }
-        .compare-items { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 16px; }
+        .compare-items { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 12px; }
+        .compare-items:empty { display: none; }
         .compare-chip {
             display: inline-flex; align-items: center; gap: 6px;
             padding: 6px 12px; border-radius: 20px; font-size: 0.8rem; font-weight: 500;
@@ -46,13 +35,8 @@
         }
         .compare-chip .remove { cursor: pointer; opacity: 0.5; font-size: 1rem; line-height: 1; }
         .compare-chip .remove:hover { opacity: 1; }
-        .compare-search { position: relative; max-width: 320px; margin-bottom: 16px; }
-        .compare-search input {
-            width: 100%; padding: 10px 14px; font-size: 0.85rem;
-            background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.08);
-            border-radius: var(--radius-sm); color: var(--text-primary); font-family: inherit; outline: none;
-        }
-        .compare-search input:focus { border-color: rgba(255,255,255,0.2); }
+        .compare-search { position: relative; }
+        .compare-search input[type="text"] { width: 100%; }
         .compare-dropdown {
             display: none; position: absolute; top: 100%; left: 0; right: 0;
             max-height: 300px; overflow-y: auto; background: rgba(8,8,8,0.98);
@@ -65,16 +49,12 @@
             border-bottom: 1px solid rgba(255,255,255,0.03);
         }
         .compare-dropdown .cmp-item:hover { background: rgba(255,255,255,0.06); }
-        .compare-chart-wrap { position: relative; height: 400px; }
+        .compare-chart-wrap { position: relative; height: 380px; }
         .compare-chart-wrap canvas { width: 100% !important; height: 100% !important; }
-        .tool-status { text-align: center; padding: 40px 20px; color: var(--text-secondary); }
-        @media (max-width: 600px) {
-            .tool-filters { flex-direction: column; align-items: stretch; }
-            .tool-filters label { justify-content: space-between; }
-            .tool-filters input[type="number"] { flex: 1; }
-            .compare-search { max-width: none; }
+        .tool-status { text-align: center; padding: 36px 20px; color: var(--text-secondary); font-size: 0.85rem; }
+        @media (max-width: 700px) {
             .compare-chart-wrap { height: 260px; }
-            .recent-grid { grid-template-columns: 1fr; }
+            .recent-grid { grid-template-columns: minmax(0, 1fr); gap: 6px; }
         }
     </style>
 </head>
@@ -86,7 +66,7 @@
             <p class="page-subtitle">Flip finder, alch profits, price comparison & more</p>
         </div>
 
-        <div class="tf-tabs" id="toolTabs" style="margin-bottom: 24px">
+        <div class="section-tabs" id="toolTabs">
             <button class="tf-tab active" data-tool="flip">Flip Finder</button>
             <button class="tf-tab" data-tool="alch">Alch Profit</button>
             <button class="tf-tab" data-tool="recent">Recently Viewed</button>
@@ -100,11 +80,11 @@
                     <span class="card-title">Flip Finder</span>
                     <span class="card-badge badge-green">2% GE Tax</span>
                 </div>
-                <div class="tool-filters">
-                    <label>Min Margin <input type="number" id="flipMinMargin" value="100" min="0"></label>
-                    <label>Min Buy Limit <input type="number" id="flipMinLimit" value="1" min="0"></label>
-                    <label title="Trades per day on each side (instant buys and instant sells), from yesterday's GE data">Min Daily Volume <input type="number" id="flipMinVol" value="10" min="0"></label>
-                    <label title="Skip items whose last instant buy or sell is older than this">Prices From <select id="flipMaxAge">
+                <div class="filters">
+                    <label class="field"><span>Min Margin</span><input type="number" id="flipMinMargin" value="100" min="0"></label>
+                    <label class="field"><span>Min Buy Limit</span><input type="number" id="flipMinLimit" value="1" min="0"></label>
+                    <label class="field" title="Trades per day on each side (instant buys and instant sells), from yesterday's GE data"><span>Min Daily Volume</span><input type="number" id="flipMinVol" value="10" min="0"></label>
+                    <label class="field" title="Skip items whose last instant buy or sell is older than this"><span>Prices From</span><select id="flipMaxAge">
                         <option value="30">Last 30 min</option>
                         <option value="60">Last hour</option>
                         <option value="120" selected>Last 2 hours</option>
@@ -112,7 +92,7 @@
                         <option value="1440">Last 24 hours</option>
                         <option value="0">Any time</option>
                     </select></label>
-                    <label><select id="flipMembers">
+                    <label class="field"><span>Members</span><select id="flipMembers">
                         <option value="all">All Items</option>
                         <option value="members">Members</option>
                         <option value="f2p">F2P Only</option>
@@ -130,9 +110,9 @@
                     <span class="card-title">Alch Profit Scanner</span>
                     <span class="card-badge badge-gold">High Alch</span>
                 </div>
-                <div class="tool-filters">
-                    <label>Min Profit <input type="number" id="alchMinProfit" value="1" min="0"></label>
-                    <label><select id="alchMembers">
+                <div class="filters">
+                    <label class="field"><span>Min Profit</span><input type="number" id="alchMinProfit" value="1" min="0"></label>
+                    <label class="field"><span>Members</span><select id="alchMembers">
                         <option value="all">All Items</option>
                         <option value="members">Members</option>
                         <option value="f2p">F2P Only</option>
@@ -161,21 +141,24 @@
                     <span class="card-title">Price Comparison</span>
                     <span class="card-badge badge-blue">Chart</span>
                 </div>
-                <div class="compare-search" id="compareSearchWrap">
-                    <input type="text" id="compareSearch" placeholder="Search items to compare (max 3)..." autocomplete="off">
-                    <div class="compare-dropdown" id="compareDropdown"></div>
+                <div class="filters">
+                    <div class="field field-grow compare-search" id="compareSearchWrap">
+                        <span>Add an item (up to 3)</span>
+                        <input type="text" id="compareSearch" placeholder="Search items to compare..." autocomplete="off" aria-label="Search items to compare">
+                        <div class="compare-dropdown" id="compareDropdown"></div>
+                    </div>
+                    <div class="tf-tabs" id="compareTf">
+                        <button class="tf-tab" data-days="7">7D</button>
+                        <button class="tf-tab active" data-days="30">30D</button>
+                        <button class="tf-tab" data-days="90">90D</button>
+                        <button class="tf-tab" data-days="180">180D</button>
+                        <button class="tf-tab" data-days="365">1Y</button>
+                    </div>
+                    <label class="checkbox-label field-wide">
+                        <input type="checkbox" id="compareNormalize"> Normalize (% change from start)
+                    </label>
                 </div>
                 <div class="compare-items" id="compareChips"></div>
-                <div class="tf-tabs" id="compareTf" style="margin-bottom: 16px">
-                    <button class="tf-tab" data-days="7">7D</button>
-                    <button class="tf-tab active" data-days="30">30D</button>
-                    <button class="tf-tab" data-days="90">90D</button>
-                    <button class="tf-tab" data-days="180">180D</button>
-                    <button class="tf-tab" data-days="365">1Y</button>
-                </div>
-                <label class="checkbox-label" style="margin-bottom: 16px">
-                    <input type="checkbox" id="compareNormalize"> Normalize (% change from start)
-                </label>
                 <div class="chart-glow">
                     <div class="compare-chart-wrap">
                         <canvas id="compareChart"></canvas>
@@ -199,6 +182,10 @@
                 document.querySelectorAll('.tool-panel').forEach(p => p.classList.remove('active'));
                 btn.classList.add('active');
                 document.getElementById('tool-' + btn.dataset.tool).classList.add('active');
+                // On phones the tabs scroll sideways: bring the chosen one fully into view
+                const bar = btn.parentElement;
+                const offset = btn.getBoundingClientRect().left - bar.getBoundingClientRect().left;
+                bar.scrollTo({ left: bar.scrollLeft + offset - (bar.clientWidth - btn.offsetWidth) / 2, behavior: 'smooth' });
             };
         });
 
@@ -207,7 +194,7 @@
         const NATURE_ID = 561;
 
         // ===================== Flip Finder =====================
-        let flipData = [], flipHidden = 0, flipSort = { col: 'margin', dir: 'desc' };
+        let flipData = [], flipHidden = 0, flipSort = { col: 'margin', dir: 'desc' }, flipShown = GE.SHOW_STEP;
 
         // A "margin" between an instant buy and an instant sell is only real if both happen often
         // and recently: rare items (3rd age, brand-new uniques) show two stale one-off trades
@@ -256,19 +243,20 @@
             });
             const top = sorted.slice(0, 200);
             if (!top.length) { document.getElementById('flipResults').innerHTML = '<div class="tool-status">No items match your filters</div>'; return; }
+            const shown = top.slice(0, flipShown);
 
             const cols = [
                 ['name','Item','left'],['buy','Buy','right'],['sell','Sell','right'],
                 ['tax','Tax','right'],['margin','Margin','right'],['roi','ROI %','right'],
                 ['vol','Vol/Day','right'],['limit','Limit','right'],['ppl','Profit/Limit','right']
             ];
-            let h = '<div class="tool-table-wrap"><table class="tool-table"><thead><tr>';
+            let h = '<div class="table-wrap"><table><thead><tr>';
             for (const [k,l,a] of cols) {
                 const cls = flipSort.col === k ? 'sorted-' + flipSort.dir : '';
                 h += `<th data-col="${k}" class="${cls}" style="text-align:${a}">${l}</th>`;
             }
             h += '</tr></thead><tbody>';
-            for (const r of top) {
+            for (const r of shown) {
                 const c = r.margin > 0 ? 'positive' : r.margin < 0 ? 'negative' : 'neutral';
                 h += `<tr>
                     <td><div class="item-cell">${GE.imgTag(r.meta,24)}<span class="item-name"><a href="item.html?id=${r.id}">${r.name}</a></span>${GE.wikiLink(r.meta)}</div></td>
@@ -282,11 +270,12 @@
                     <td style="text-align:right" class="${r.limit ? c : ''}">${r.limit ? GE.fmtGp(r.ppl) : '—'}</td>
                 </tr>`;
             }
-            h += '</tbody></table></div>';
-            h += `<div style="margin-top:12px;font-size:0.75rem;color:var(--text-muted)">Showing top ${top.length} of ${flipData.length} items`
+            h += '</tbody></table></div>' + GE.moreHTML(shown.length, top.length);
+            h += `<div class="card-note">Top ${top.length} of ${flipData.length} items by the sorted column`
                 + (flipHidden ? ` · ${flipHidden.toLocaleString()} hidden for trading too rarely or having old prices — loosen Min Daily Volume / Prices From to see them` : '')
                 + '. Vol/Day is yesterday\'s instant buys / instant sells, the same as the item page\'s volume chart.</div>';
             document.getElementById('flipResults').innerHTML = h;
+            GE.bindMore(document.getElementById('flipResults'), n => { flipShown += n; renderFlips(); });
 
             document.querySelectorAll('#flipResults th[data-col]').forEach(th => {
                 th.onclick = () => {
@@ -305,13 +294,14 @@
             }
             flipData = buildFlips(flipDaily);
             flipSort = { col: 'margin', dir: 'desc' };
+            flipShown = GE.SHOW_STEP;
             renderFlips();
         }
         document.getElementById('flipScan').onclick = runFlips;
         runFlips();
 
         // ===================== Alch Profit =====================
-        let alchData = [], alchSort = { col: 'profit', dir: 'desc' };
+        let alchData = [], alchSort = { col: 'profit', dir: 'desc' }, alchShown = GE.SHOW_STEP;
 
         function buildAlchs() {
             const natPrice = latest[NATURE_ID] ? latest[NATURE_ID].high : 250;
@@ -342,19 +332,20 @@
             });
             const top = sorted.slice(0, 200);
             if (!top.length) { document.getElementById('alchResults').innerHTML = '<div class="tool-status">No profitable alch items found</div>'; return; }
+            const shown = top.slice(0, alchShown);
 
             const cols = [
                 ['name','Item','left'],['buy','Buy Price','right'],['alch','Alch Value','right'],
                 ['nature','Nature Cost','right'],['profit','Profit','right'],['roi','ROI %','right'],
                 ['limit','Limit','right']
             ];
-            let h = '<div class="tool-table-wrap"><table class="tool-table"><thead><tr>';
+            let h = '<div class="table-wrap"><table><thead><tr>';
             for (const [k,l,a] of cols) {
                 const cls = alchSort.col === k ? 'sorted-' + alchSort.dir : '';
                 h += `<th data-col="${k}" class="${cls}" style="text-align:${a}">${l}</th>`;
             }
             h += '</tr></thead><tbody>';
-            for (const r of top) {
+            for (const r of shown) {
                 const c = r.profit > 0 ? 'positive' : 'negative';
                 h += `<tr>
                     <td><div class="item-cell">${GE.imgTag(r.meta,24)}<span class="item-name"><a href="item.html?id=${r.id}">${r.name}</a></span>${GE.wikiLink(r.meta)}</div></td>
@@ -366,10 +357,11 @@
                     <td style="text-align:right">${r.limit ? r.limit.toLocaleString() : '—'}</td>
                 </tr>`;
             }
-            h += '</tbody></table></div>';
+            h += '</tbody></table></div>' + GE.moreHTML(shown.length, top.length);
             const natPrice = latest[NATURE_ID] ? latest[NATURE_ID].high : 250;
-            h += `<div style="margin-top:12px;font-size:0.75rem;color:var(--text-muted)">Nature rune: ${natPrice.toLocaleString()} gp · Showing top ${top.length} of ${alchData.length} items</div>`;
+            h += `<div class="card-note">Nature rune: ${natPrice.toLocaleString()} gp · Top ${top.length} of ${alchData.length} items by the sorted column</div>`;
             document.getElementById('alchResults').innerHTML = h;
+            GE.bindMore(document.getElementById('alchResults'), n => { alchShown += n; renderAlchs(); });
 
             document.querySelectorAll('#alchResults th[data-col]').forEach(th => {
                 th.onclick = () => {
@@ -381,7 +373,7 @@
             });
         }
 
-        function runAlchs() { alchData = buildAlchs(); alchSort = { col: 'profit', dir: 'desc' }; renderAlchs(); }
+        function runAlchs() { alchData = buildAlchs(); alchSort = { col: 'profit', dir: 'desc' }; alchShown = GE.SHOW_STEP; renderAlchs(); }
         document.getElementById('alchScan').onclick = runAlchs;
         runAlchs();
 

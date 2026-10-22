@@ -18,9 +18,9 @@
         };
     </script>
     <style>
-        .calc-skills { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 6px; margin-bottom: 20px; }
+        .calc-skills { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 6px; margin-bottom: 14px; }
         .calc-skill {
-            display: flex; align-items: center; gap: 8px; padding: 8px 10px; cursor: pointer;
+            display: flex; align-items: center; gap: 8px; padding: 6px 10px; cursor: pointer;
             border-radius: var(--radius-sm); border: 1px solid rgba(255,255,255,0.05);
             background: rgba(255,255,255,0.02); color: var(--text-secondary);
             font-family: inherit; font-size: 0.8rem; text-align: left; transition: all 0.2s;
@@ -32,9 +32,9 @@
         .calc-skill .lv { font-size: 0.7rem; color: var(--text-muted); font-variant-numeric: tabular-nums; }
         .calc-skill.active .lv { color: var(--text-secondary); }
 
-        .calc-form { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 16px 20px; }
-        .calc-field { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
-        .calc-field > span { font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-secondary); font-weight: 600; }
+        .calc-form { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px 16px; }
+        .calc-field { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+        .calc-field > span { font-size: 0.62rem; text-transform: uppercase; letter-spacing: 0.07em; color: var(--text-muted); font-weight: 600; }
         .calc-pair { display: flex; gap: 6px; }
         .calc-pair input { min-width: 0; }
         .calc-pair input.lvl { width: 72px; flex-shrink: 0; }
@@ -52,19 +52,15 @@
         .calc-progress { height: 4px; background: rgba(255,255,255,0.06); border-radius: 2px; margin-top: 10px; overflow: hidden; }
         .calc-progress > div { height: 100%; background: rgba(255,255,255,0.6); box-shadow: 0 0 8px rgba(255,255,255,0.4); }
 
-        .calc-filters { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin-bottom: 14px; }
-        .calc-filters input[type="text"] { width: 220px; }
-        .calc-note { font-size: 0.72rem; color: var(--text-muted); margin-top: 12px; line-height: 1.6; }
+        .calc-note { font-size: 0.72rem; color: var(--text-muted); margin-top: 10px; line-height: 1.6; }
 
-        .calc-table-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; container-type: inline-size; }
-        .calc-table td, .calc-table th { padding: 8px 10px; font-size: 0.8rem; }
-        .calc-table .num { text-align: right; font-variant-numeric: tabular-nums; }
-        .calc-table th.sorted-asc::after { content: ' \25B2'; font-size: 0.6rem; }
-        .calc-table th.sorted-desc::after { content: ' \25BC'; font-size: 0.6rem; }
+        .calc-table-wrap { container-type: inline-size; }
+        .calc-table .num { text-align: right; }
+        .calc-table td.mats, .calc-table th.mats { text-align: left; }
         .calc-table tbody tr.row { cursor: pointer; }
         .calc-table tr.locked td { opacity: 0.4; }
         .calc-table tr.locked td:first-child { opacity: 0.55; }
-        .calc-table .mats { color: var(--text-secondary); font-size: 0.74rem; max-width: 220px; overflow: hidden; text-overflow: ellipsis; }
+        .calc-table td.mats { color: var(--text-secondary); font-size: 0.74rem; max-width: 220px; overflow: hidden; text-overflow: ellipsis; }
         .calc-table .p2p { font-size: 0.62rem; color: var(--text-muted); border: 1px solid rgba(255,255,255,0.08); border-radius: 4px; padding: 0 4px; margin-left: 6px; }
         .calc-table .skill-ico { width: 24px; height: 24px; image-rendering: pixelated; opacity: 0.6; filter: drop-shadow(0 0 1px rgba(255,255,255,0.45)); }
         .calc-table tr.detail td { background: rgba(255,255,255,0.015); white-space: normal; padding: 12px 16px 16px; }
@@ -78,12 +74,13 @@
         @media (max-width: 1200px) {
             .calc-table .mats { display: none; }
         }
-        @media (max-width: 600px) {
-            .calc-skills { grid-template-columns: repeat(6, 1fr); gap: 4px; }
+        @media (max-width: 700px) {
+            .calc-skills { grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 4px; }
             .calc-skill { justify-content: center; padding: 8px 0; }
             .calc-skill .nm, .calc-skill .lv { display: none; }
-            .calc-filters input[type="text"] { width: 100%; }
-            .calc-filters select { flex: 1; }
+            .calc-form { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 10px; }
+            .calc-form > .calc-field:first-child { grid-column: 1 / -1; }
+            .calc-pair input.lvl { width: 52px; }
         }
     </style>
 </head>
@@ -97,7 +94,7 @@
 
         <div class="calc-skills" id="calcSkills"></div>
 
-        <div class="card" style="margin-bottom:16px">
+        <div class="card" style="margin-bottom:12px">
             <div class="card-header">
                 <span class="card-title" id="calcTitle">Skill Calculator</span>
                 <span class="card-badge badge-green">Live GE prices · 2% tax</span>
@@ -144,35 +141,35 @@
         <div class="stats-row" id="calcStats"></div>
 
         <div class="card">
-            <div class="calc-filters">
-                <input type="text" id="calcSearch" placeholder="Filter methods..." autocomplete="off">
-                <select id="calcCat"><option value="">All categories</option></select>
-                <select id="calcCompost" title="Compost adds harvest lives and its own XP">
+            <div class="filters">
+                <label class="field field-grow"><span>Filter</span><input type="text" id="calcSearch" placeholder="Filter methods..." autocomplete="off"></label>
+                <label class="field"><span>Category</span><select id="calcCat"><option value="">All categories</option></select></label>
+                <label class="field"><span>Compost</span><select id="calcCompost" title="Compost adds harvest lives and its own XP">
                     <option value="None">No compost</option>
                     <option value="Compost">Compost</option>
                     <option value="Supercompost">Supercompost</option>
                     <option value="Ultracompost">Ultracompost</option>
-                </select>
+                </select></label>
                 <label class="checkbox-label" id="calcSecateursWrap"><input type="checkbox" id="calcSecateurs"> Magic secateurs</label>
-                <select id="calcShow">
+                <label class="field"><span>Show</span><select id="calcShow">
                     <option value="all">All methods</option>
                     <option value="unlocked">Available at current level</option>
-                </select>
-                <select id="calcMembers">
+                </select></label>
+                <label class="field"><span>Members</span><select id="calcMembers">
                     <option value="all">F2P + Members</option>
                     <option value="f2p">F2P only</option>
-                </select>
-                <select id="calcPrices">
+                </select></label>
+                <label class="field"><span>Prices</span><select id="calcPrices">
                     <option value="instant">Instant prices (buy high, sell low)</option>
                     <option value="patient">Patient offers (buy low, sell high)</option>
-                </select>
-                <select id="calcStyle">
+                </select></label>
+                <label class="field"><span>XP per damage</span><select id="calcStyle">
                     <option value="4">4 XP per damage (one skill)</option>
                     <option value="2">2 XP per damage (long range / defensive casting)</option>
                     <option value="1.333">1.33 XP per damage (controlled)</option>
-                </select>
+                </select></label>
             </div>
-            <div class="calc-table-wrap" id="calcTable"><div class="calc-status"><div class="spinner"></div>Loading...</div></div>
+            <div class="table-wrap calc-table-wrap" id="calcTable"><div class="calc-status"><div class="spinner"></div>Loading...</div></div>
             <div class="calc-note" id="calcNote"></div>
         </div>
     </div>
@@ -195,8 +192,10 @@
             skill: OSRS.SKILLS.some(([k]) => k === params.get('skill')) ? params.get('skill') : 'fletching',
             curXp: 0, tgtXp: 83,
             sort: { col: 'l', dir: 'asc' },
-            expanded: new Set()
+            expanded: new Set(),
+            shown: GE.SHOW_STEP          // rows listed; "Show more" adds to it
         };
+        const bindMoreRows = () => GE.bindMore($('calcTable'), n => { state.shown += n; render(); });
 
         // ---------- Prices ----------
         const [mapping, latestData] = await GE.preload();
@@ -343,6 +342,7 @@
         async function selectSkill(skill) {
             state.skill = skill;
             state.expanded.clear();
+            state.shown = GE.SHOW_STEP;
             state.sort = OSRS.MONSTER_SKILLS.includes(skill) ? { col: 'c', dir: 'asc' } : { col: 'l', dir: 'asc' };
             $('calcSearch').value = '';
             $('calcTitle').textContent = OSRS.skillName(skill) + ' Calculator';
@@ -603,13 +603,14 @@
             const isMonster = isMonsterSkill(state.skill);
             const isCombat = isMonster && state.skill !== 'slayer';
             const isFarming = state.skill === 'farming';
-            $('calcStyle').style.display = isCombat && state.skill !== 'hitpoints' ? '' : 'none';
-            $('calcMembers').style.display = isMonster ? 'none' : '';
-            $('calcPrices').style.display = isMonster ? 'none' : '';
-            $('calcCat').style.display = isMonster ? 'none' : '';
-            $('calcShow').style.display = isCombat ? 'none' : '';
-            $('calcCompost').style.display = isFarming ? '' : 'none';
-            $('calcSecateursWrap').style.display = isFarming ? '' : 'none';
+            const showField = (id, on) => { $(id).closest('.field, .checkbox-label').style.display = on ? '' : 'none'; };
+            showField('calcStyle', isCombat && state.skill !== 'hitpoints');
+            showField('calcMembers', !isMonster);
+            showField('calcPrices', !isMonster);
+            showField('calcCat', !isMonster);
+            showField('calcShow', !isCombat);
+            showField('calcCompost', isFarming);
+            showField('calcSecateurs', isFarming);
 
             if (loadError) {
                 $('calcTable').innerHTML = `<div class="calc-status">${esc(loadError.message)} — calculator data is missing from this copy of the site.</div>`;
@@ -626,7 +627,8 @@
 
             if (isMonster) {
                 const all = sortRows(monsterRows(xpNeeded));
-                const rows = all.slice(0, 300);
+                const listed = all.slice(0, 300);
+                const rows = listed.slice(0, state.shown);
                 const slayer = state.skill === 'slayer';
                 const cols = [['n', 'Monster'], ['c', 'Combat', 1], ['h', 'HP', 1]]
                     .concat(slayer ? [['sl', 'Slayer Lvl', 1]] : [['b', 'XP Bonus', 1]])
@@ -638,9 +640,10 @@
                     <td class="num">${row.h.toLocaleString()}</td>
                     ${slayer ? `<td class="num">${row.sl || 1}</td>` : `<td class="num">${row.b ? '+' + row.b + '%' : '—'}</td>`}
                     <td class="num">${fmtXp(Math.round(row.x * 10) / 10)}</td>
-                    <td class="num"><strong>${row.actions.toLocaleString()}</strong></td>`) : '<div class="calc-status">No monsters match</div>';
+                    <td class="num"><strong>${row.actions.toLocaleString()}</strong></td>`) + GE.moreHTML(rows.length, listed.length) : '<div class="calc-status">No monsters match</div>';
                 bindTable(['c', 'h', 'b', 'x', 'sl']);
-                $('calcNote').innerHTML = (all.length > rows.length ? `Showing ${rows.length} of ${all.length} monsters — use the filter to find others. ` : '')
+                bindMoreRows();
+                $('calcNote').innerHTML = (all.length > listed.length ? `The first ${listed.length} of ${all.length} monsters can be listed — use the filter to find others. ` : '')
                     + (slayer
                         ? 'Slayer XP is only earned on-task.'
                         : state.skill === 'hitpoints'
@@ -650,9 +653,10 @@
             }
 
             const all = sortRows(methodRows(xpNeeded));
+            const rows = all.slice(0, state.shown);
             const cols = [['n', 'Method'], ['l', 'Level', 1], ['x', 'XP', 1], ['actions', 'Actions', 1], ['m', 'Materials (each)'],
                 ['each', 'GP / Action', 1], ['gpxp', 'GP / XP', 1], ['total', 'Total GP', 1]];
-            $('calcTable').innerHTML = all.length ? tableHTML(cols, all, row => `
+            $('calcTable').innerHTML = all.length ? tableHTML(cols, rows, row => `
                 <td><div class="item-cell">${rowIcon(row)}<span class="item-name">${esc(row.n)}</span>${row.r.p ? '<span class="p2p">P2P</span>' : ''}</div></td>
                 <td class="num">${row.l}</td>
                 <td class="num">${fmtXp(Math.round(row.x * 10) / 10)}</td>
@@ -660,8 +664,9 @@
                 <td class="mats" title="${esc(row.a.mats.map(m => fmtQty(m[1]) + '× ' + m[0]).join(', '))}">${row.a.mats.map(m => fmtQty(m[1]) + '× ' + esc(m[0])).join(', ') || '<span style="color:var(--text-muted)">—</span>'}</td>
                 <td class="num">${signed(row.each)}</td>
                 <td class="num">${signed(row.gpxp, 2)}</td>
-                <td class="num">${signed(row.total)}</td>`, detailHTML) : '<div class="calc-status">No methods match your filters</div>';
+                <td class="num">${signed(row.total)}</td>`, detailHTML) + GE.moreHTML(rows.length, all.length) : '<div class="calc-status">No methods match your filters</div>';
             bindTable(['l', 'x', 'actions', 'each', 'gpxp', 'total']);
+            bindMoreRows();
             $('calcNote').innerHTML = `${all.length} methods · Click a row for total materials and costs. `
                 + 'GP is per action at live GE prices, with the 2% tax taken off anything you sell. '
                 + 'Locked methods (above your current level) are dimmed. Method data from the OSRS Wiki.'
@@ -669,7 +674,7 @@
         }
 
         ['calcSearch', 'calcCat', 'calcShow', 'calcMembers', 'calcPrices', 'calcStyle', 'calcCompost', 'calcSecateurs'].forEach(id => {
-            $(id).addEventListener(id === 'calcSearch' ? 'input' : 'change', () => render());
+            $(id).addEventListener(id === 'calcSearch' ? 'input' : 'change', () => { state.shown = GE.SHOW_STEP; render(); });
         });
 
         // ---------- Boot ----------
