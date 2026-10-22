@@ -18,13 +18,12 @@
         };
     </script>
     <style>
-        .calc-switch { margin-top: 14px; }
-        .calc-switch .tf-tab { display: inline-block; }
-        .calc-switch .tf-tab:hover { opacity: 1; }
+        /* Skills | Minigames: section tabs, as on Trading and Scanner */
+        .calc-switch a.tf-tab:hover { opacity: 1; }
 
-        .mg-picker { display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 6px; margin-bottom: 20px; }
+        .mg-picker { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 6px; margin-bottom: 14px; }
         .calc-skill {
-            display: flex; align-items: center; gap: 8px; padding: 8px 10px; cursor: pointer; min-width: 0;
+            display: flex; align-items: center; gap: 8px; padding: 6px 10px; cursor: pointer; min-width: 0;
             border-radius: var(--radius-sm); border: 1px solid rgba(255,255,255,0.05);
             background: rgba(255,255,255,0.02); color: var(--text-secondary);
             font-family: inherit; font-size: 0.8rem; text-align: left; transition: all 0.2s;
@@ -36,12 +35,13 @@
         .calc-skill .nm { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
         .calc-skill .sk { width: 14px; height: 14px; opacity: 0.55; }
 
-        .calc-form { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 16px 20px; }
-        .calc-form + .calc-form { margin-top: 16px; padding-top: 16px; border-top: 1px solid rgba(255,255,255,0.04); }
-        .calc-field { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
-        .calc-field > span { font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-secondary); font-weight: 600; }
+        .calc-form { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px 16px; }
+        .calc-form + .calc-form { margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--line); }
+        .calc-field { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+        .calc-field > span { font-size: 0.62rem; text-transform: uppercase; letter-spacing: 0.07em; color: var(--text-muted); font-weight: 600; }
         .calc-field > span.hint { font-size: 0.68rem; color: var(--text-muted); line-height: 1.4; text-transform: none; letter-spacing: normal; font-weight: 400; }
         .calc-field.check { justify-content: flex-end; }
+        .calc-field.check .checkbox-label { height: 33px; white-space: normal; }
         .calc-pair { display: flex; gap: 6px; }
         .calc-pair input { min-width: 0; }
         .calc-pair input.lvl { width: 72px; flex-shrink: 0; }
@@ -57,29 +57,29 @@
         .calc-rsn-status { font-size: 0.72rem; color: var(--text-muted); min-height: 1em; }
         .calc-rsn-status.error { color: var(--red); }
 
-        .mg-tables { display: grid; grid-template-columns: minmax(0, 3fr) minmax(0, 2fr); gap: 16px; margin-bottom: 16px; }
+        .mg-tables { display: grid; grid-template-columns: minmax(0, 3fr) minmax(0, 2fr); gap: 12px; margin-bottom: 12px; align-items: start; }
         .mg-tables.single { grid-template-columns: minmax(0, 1fr); }
-        .calc-table-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
-        .calc-table td, .calc-table th { padding: 7px 10px; font-size: 0.8rem; }
-        .calc-table .num { text-align: right; font-variant-numeric: tabular-nums; }
-        .calc-table th.sorted-asc::after { content: ' \25B2'; font-size: 0.6rem; }
-        .calc-table th.sorted-desc::after { content: ' \25BC'; font-size: 0.6rem; }
         .calc-table .muted { color: var(--text-muted); }
-        .calc-table tfoot td { font-weight: 600; border-top: 1px solid rgba(255,255,255,0.08); border-bottom: none; }
-        .calc-table .tag-sm { font-size: 0.62rem; color: var(--text-muted); border: 1px solid rgba(255,255,255,0.08); border-radius: 4px; padding: 0 4px; margin-left: 6px; }
-        .calc-note { font-size: 0.72rem; color: var(--text-muted); margin-top: 12px; line-height: 1.6; }
+        .calc-table .tag-sm { font-size: 0.62rem; color: var(--text-muted); border: 1px solid rgba(255,255,255,0.08); border-radius: 4px; padding: 0 4px; flex-shrink: 0; }
+        /* Total under a list, lined up with its last column */
+        .mg-total { display: flex; justify-content: space-between; gap: 12px; padding-top: 10px; font-size: 0.8rem; font-weight: 600; font-variant-numeric: tabular-nums; }
+        .mg-total span:first-child { color: var(--text-secondary); font-weight: 500; }
+        .calc-note { font-size: 0.72rem; color: var(--text-muted); line-height: 1.6; }
         .calc-note a { color: var(--text-secondary); text-decoration: underline; text-decoration-color: rgba(255,255,255,0.15); }
         .calc-note .warn { color: #f59e0b; }
         .calc-status { text-align: center; padding: 40px 20px; color: var(--text-secondary); }
-        .mg-sources { font-size: 0.7rem; color: var(--text-muted); line-height: 1.7; }
+        .mg-sources { font-size: 0.7rem; color: var(--text-muted); line-height: 1.7; margin-top: 8px; }
         .mg-sources a { color: var(--text-secondary); }
 
         @media (max-width: 1000px) {
             .mg-tables { grid-template-columns: minmax(0, 1fr); }
         }
-        @media (max-width: 600px) {
+        @media (max-width: 700px) {
             .mg-picker { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 4px; }
             .calc-skill .sk { display: none; }
+            .calc-form { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 10px; }
+            .calc-form > .calc-field:first-child, .calc-form > .calc-field.check, .calc-form > .calc-field:has(.hint) { grid-column: 1 / -1; }
+            .calc-pair input.lvl, .calc-pair input[type="number"].lvl { width: 52px; }
         }
     </style>
 </head>
@@ -89,12 +89,12 @@
         <div class="page-header">
             <h1 class="page-title">Calculators</h1>
             <p class="page-subtitle">Minigames and activities: games needed, supplies, loot and profit at live GE prices</p>
-            <div class="tf-tabs calc-switch"><a class="tf-tab" href="calculators.html">Skills</a><a class="tf-tab active" href="minigames.html">Minigames</a></div>
         </div>
+        <div class="section-tabs calc-switch"><a class="tf-tab" href="calculators.html">Skills</a><a class="tf-tab active" href="minigames.html">Minigames</a></div>
 
         <div class="mg-picker" id="mgPicker"></div>
 
-        <div class="card" style="margin-bottom:16px">
+        <div class="card" style="margin-bottom:12px">
             <div class="card-header">
                 <span class="card-title" id="mgTitle">Minigame Calculator</span>
                 <span class="card-badge badge-green">Live GE prices · 2% tax</span>
@@ -397,14 +397,14 @@
                 ],
                 unit(L, c) {
                     const b = bfBar(c.v), rate = c.rate(L);
-                    const fees = [[`Coffer (${GE.fmtGp(BF.coffer)} an hour)`, BF.coffer / rate]];
-                    if (L < BF.fee.level) fees.push([`Foreman fee (${GE.fmtGp(BF.fee.gp)} per ${BF.fee.minutes} min under ${BF.fee.level} Smithing)`, BF.fee.gp * 60 / BF.fee.minutes / rate]);
+                    const fees = [[`Coffer (${GE.fmtGp(BF.coffer)}/h)`, BF.coffer / rate]];
+                    if (L < BF.fee.level) fees.push([`Foreman fee (under ${BF.fee.level} Smithing)`, BF.fee.gp * 60 / BF.fee.minutes / rate]);
                     return { xp: { smithing: b.xp }, loot: [[b.bar, 1]], cost: b.ores, fees, rate };
                 },
                 notes: c => {
                     const b = bfBar(c.v), out = [];
                     if (c.level < b.level) out.push(`<span class="warn">${esc(b.name)} needs level ${b.level} Smithing.</span>`);
-                    out.push('Costs include the coffer the dwarves are paid from on official Blast Furnace worlds, and the foreman\'s fee below 60 Smithing.'
+                    out.push(`Costs include the coffer the dwarves are paid from on official Blast Furnace worlds (${BF.coffer.toLocaleString()} gp an hour), and the foreman's ${BF.fee.gp.toLocaleString()} gp per ${BF.fee.minutes} minutes below ${BF.fee.level} Smithing.`
                         + (/gauntlets/.test(b.name) ? ' Goldsmith gauntlets give the higher XP.' : ''));
                     return out;
                 }
@@ -1187,14 +1187,14 @@
             const total = rows.reduce((s, r) => s + (r.total || 0), 0) + sim.gp;
             const th = (k, label, num) => `<th data-sort="${k}" class="${num ? 'num ' : ''}${col === k ? 'sorted-' + dir : ''}">${label}</th>`;
             let h = `<div class="card"><div class="card-header"><span class="card-title">Loot</span><span class="card-badge badge-white">${fmtNum(sim.units)} ${sim.units === 1 ? x.units[0] : x.units[1]}</span></div>`;
-            h += '<div class="calc-table-wrap"><table class="calc-table"><thead><tr>' + th('name', 'Item') + th('qty', 'Qty', 1) + '<th class="num" style="cursor:default">Chance of 1+</th>' + th('each', 'Each (net)', 1) + th('total', 'Total', 1) + '</tr></thead><tbody>';
+            h += '<div class="table-wrap"><table class="calc-table"><thead><tr>' + th('name', 'Item') + th('qty', 'Qty', 1) + '<th class="num" style="cursor:default">Chance of 1+</th>' + th('each', 'Each (net)', 1) + th('total', 'Total', 1) + '</tr></thead><tbody>';
             if (sim.gp) h += `<tr><td>${itemCell('Coins', 'reward')}</td><td class="num">${Math.round(sim.gp).toLocaleString()}</td><td></td><td class="num">1</td><td class="num">${signed(sim.gp)}</td></tr>`;
             for (const r of rows) {
-                h += `<tr><td>${itemCell(r.name, r.container ? 'contents' : '')}</td><td class="num">${fmtQty(r.qty)}</td><td class="num muted">${chance(r.qty)}</td>`
+                h += `<tr><td>${itemCell(r.name, r.container ? 'contents' : '')}</td><td class="num">${fmtQty(r.qty)}</td><td class="num muted"${chance(r.qty) ? '' : ' data-label=""'}>${chance(r.qty)}</td>`
                     + `<td class="num">${r.each == null ? '<span class="muted">not on GE</span>' : (r.container ? '≈' : '') + GE.fmtGp(Math.round(r.each))}</td><td class="num">${signed(r.total)}</td></tr>`;
             }
             if (!rows.length && !sim.gp) h += '<tr><td colspan="5" class="muted">No loot</td></tr>';
-            h += `</tbody><tfoot><tr><td>Total after 2% tax</td><td></td><td></td><td></td><td class="num">${signed(total)}</td></tr></tfoot></table></div></div>`;
+            h += `</tbody></table></div><div class="mg-total"><span>Total after 2% tax</span><span>${signed(total)}</span></div></div>`;
             return { html: h, total };
         }
 
@@ -1206,16 +1206,16 @@
             const fees = Object.entries(sim.fees);
             if (!rows.length && !fees.length) return { html: '', total: 0, unknown: false };
             let total = 0, unknown = false;
-            let h = '<div class="card"><div class="card-header"><span class="card-title">Supplies</span></div><div class="calc-table-wrap"><table class="calc-table"><thead><tr><th style="cursor:default">Item</th><th class="num" style="cursor:default">Qty</th><th class="num" style="cursor:default">Each</th><th class="num" style="cursor:default">Cost</th></tr></thead><tbody>';
+            let h = '<div class="card"><div class="card-header"><span class="card-title">Supplies</span></div><div class="table-wrap"><table class="calc-table"><thead><tr><th style="cursor:default">Item</th><th class="num" style="cursor:default">Qty</th><th class="num" style="cursor:default">Each</th><th class="num" style="cursor:default">Cost</th></tr></thead><tbody>';
             for (const r of rows) {
                 if (r.total == null) unknown = true; else total += r.total;
                 h += `<tr><td>${itemCell(r.name)}</td><td class="num">${fmtQty(Math.ceil(r.qty - 1e-9))}</td><td class="num">${r.each == null ? '<span class="muted">not on GE</span>' : GE.fmtGp(r.each)}</td><td class="num">${r.total == null ? '<span class="muted">—</span>' : signed(-r.total)}</td></tr>`;
             }
             for (const [label, gp] of fees) {
                 total += gp;
-                h += `<tr><td><span class="muted">${esc(label)}</span></td><td class="num">${Math.round(gp).toLocaleString()}</td><td class="num">1</td><td class="num">${signed(-gp)}</td></tr>`;
+                h += `<tr><td><div class="item-cell"><span class="item-name muted" title="${esc(label)}">${esc(label)}</span></div></td><td class="num">${Math.round(gp).toLocaleString()}</td><td class="num">1</td><td class="num">${signed(-gp)}</td></tr>`;
             }
-            h += `</tbody><tfoot><tr><td>Total</td><td></td><td></td><td class="num">${signed(-total)}</td></tr></tfoot></table></div></div>`;
+            h += `</tbody></table></div><div class="mg-total"><span>Total</span><span>${signed(-total)}</span></div></div>`;
             return { html: h, total, unknown };
         }
 

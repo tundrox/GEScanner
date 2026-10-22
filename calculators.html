@@ -18,9 +18,7 @@
         };
     </script>
     <style>
-        .calc-switch { margin-top: 14px; }
-        .calc-switch .tf-tab { display: inline-block; }
-        .calc-switch .tf-tab:hover { opacity: 1; }
+        .calc-switch a.tf-tab:hover { opacity: 1; }
         .calc-skills { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 6px; margin-bottom: 14px; }
         .calc-skill {
             display: flex; align-items: center; gap: 8px; padding: 6px 10px; cursor: pointer;
@@ -93,8 +91,8 @@
         <div class="page-header">
             <h1 class="page-title">Calculators</h1>
             <p class="page-subtitle">XP needed, actions to go, and what it costs or earns at live GE prices</p>
-            <div class="tf-tabs calc-switch"><a class="tf-tab active" href="calculators.html">Skills</a><a class="tf-tab" href="minigames.html">Minigames</a></div>
         </div>
+        <div class="section-tabs calc-switch"><a class="tf-tab active" href="calculators.html">Skills</a><a class="tf-tab" href="minigames.html">Minigames</a></div>
 
         <div class="calc-skills" id="calcSkills"></div>
 
