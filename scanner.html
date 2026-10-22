@@ -19,157 +19,27 @@
         };
     </script>
     <style>
-        .scan-panel {
-            position: relative;
-            background-color: rgba(14, 14, 14, 0.95);
-            background-image:
-                linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.2) 15%, rgba(255,255,255,0.5) 50%, rgba(255,255,255,0.2) 85%, transparent 100%),
-                linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.1) 20%, rgba(255,255,255,0.25) 50%, rgba(255,255,255,0.1) 80%, transparent 100%),
-                linear-gradient(180deg, transparent 0%, rgba(255,255,255,0.12) 20%, rgba(255,255,255,0.25) 50%, rgba(255,255,255,0.12) 80%, transparent 100%),
-                linear-gradient(180deg, transparent 0%, rgba(255,255,255,0.12) 20%, rgba(255,255,255,0.25) 50%, rgba(255,255,255,0.12) 80%, transparent 100%),
-                radial-gradient(ellipse at top, rgba(255,255,255,0.04) 0%, transparent 70%);
-            background-size: 100% 1px, 100% 1px, 1px 100%, 1px 100%, 70% 60px;
-            background-position: top center, bottom center, left center, right center, top center;
-            background-repeat: no-repeat;
-            border: 1px solid rgba(255,255,255,0.06);
-            border-radius: var(--radius-md);
-            padding: 28px;
-            margin-bottom: 24px;
-            box-shadow: 0 4px 20px rgba(0,0,0,0.8), 0 0 60px rgba(255,255,255,0.02);
-            overflow: hidden;
-        }
-
-        .scan-section-label {
-            font-size: 0.6rem;
-            text-transform: uppercase;
-            letter-spacing: 0.15em;
-            color: var(--text-secondary);
-            margin-bottom: 12px;
-            font-weight: 600;
-        }
-
-        .scan-row {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 20px;
-            align-items: flex-end;
-            margin-bottom: 20px;
-        }
-
-        .scan-field {
-            display: flex;
-            flex-direction: column;
-            gap: 6px;
-        }
-        .scan-field label {
-            font-size: 0.7rem;
-            text-transform: uppercase;
-            letter-spacing: 0.08em;
-            color: var(--text-muted);
-            font-weight: 600;
-        }
-        .scan-field input[type="number"],
-        .scan-field input[type="text"] {
-            background: rgba(255,255,255,0.03);
-            border: 1px solid rgba(255,255,255,0.08);
-            border-radius: 4px;
-            padding: 8px 12px;
-            color: var(--text-primary);
-            font-size: 0.9rem;
-            font-family: 'DM Sans', sans-serif;
-            width: 110px;
-            outline: none;
-            transition: border-color 0.2s;
-        }
-        .scan-field input:focus {
-            border-color: rgba(255,255,255,0.25);
-        }
-
-        .scan-check {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            cursor: pointer;
-            font-size: 0.8rem;
-            color: var(--text-secondary);
-            padding-bottom: 8px;
-        }
-        .scan-check input[type="checkbox"] {
-            accent-color: #ffffff;
-            width: 16px; height: 16px;
-        }
-
         .scan-actions {
             display: flex;
             align-items: center;
-            gap: 12px;
-            padding-top: 8px;
-            border-top: 1px solid rgba(255,255,255,0.04);
+            flex-wrap: wrap;
+            gap: 10px 12px;
+            padding-top: 12px;
+            border-top: 1px solid var(--line);
         }
-
-        .btn-scan {
-            position: relative;
-            background: #ffffff;
-            color: #000000;
-            border: none;
-            border-radius: var(--radius-sm);
-            padding: 10px 28px;
-            font-size: 0.85rem;
-            font-weight: 700;
-            font-family: inherit;
-            text-transform: uppercase;
-            letter-spacing: 0.08em;
-            cursor: pointer;
-            transition: all 0.2s;
-            box-shadow: 0 2px 20px rgba(255,255,255,0.1);
-        }
-        .btn-scan:hover { box-shadow: 0 4px 30px rgba(255,255,255,0.15); transform: translateY(-1px); }
-        .btn-scan:disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
-
-        .btn-export {
-            background: transparent;
-            border: 1px solid rgba(255,255,255,0.1);
-            border-radius: 4px;
-            padding: 9px 20px;
-            color: var(--text-secondary);
-            font-size: 0.8rem;
-            font-family: inherit;
-            cursor: pointer;
-            transition: all 0.2s;
-        }
-        .btn-export:hover { border-color: rgba(255,255,255,0.3); color: #ffffff; }
-
-        .scan-status {
-            font-size: 0.8rem;
-            color: var(--text-secondary);
-            font-family: 'DM Sans', sans-serif;
-        }
+        .scan-status { font-size: 0.8rem; color: var(--text-secondary); }
 
         /* Progress */
-        .scan-progress {
-            display: none;
-            margin-bottom: 24px;
-        }
-        .scan-progress .card {
-            position: relative;
-            overflow: hidden;
-        }
-        .progress-inner {
-            text-align: center;
-            padding: 32px 20px;
-        }
-        .progress-label {
-            font-size: 0.85rem;
-            color: var(--text-secondary);
-            margin-bottom: 4px;
-            font-family: 'DM Sans', sans-serif;
-        }
+        .scan-progress { display: none; margin-bottom: 16px; }
+        .progress-inner { text-align: center; padding: 20px 8px; }
+        .progress-label { font-size: 0.82rem; color: var(--text-secondary); margin-bottom: 2px; }
         .progress-pct {
-            font-size: 2.2rem;
+            font-size: 1.9rem;
             font-weight: 700;
             color: #ffffff;
             text-shadow: 0 0 24px rgba(255,255,255,0.2);
-            margin-bottom: 16px;
+            margin-bottom: 12px;
+            font-variant-numeric: tabular-nums;
         }
         .progress-track {
             background: rgba(255,255,255,0.04);
@@ -186,63 +56,15 @@
             transition: width 0.3s;
             box-shadow: 0 0 12px rgba(255,255,255,0.3);
         }
-        .progress-detail {
-            font-size: 0.75rem;
-            color: var(--text-muted);
-            margin-top: 10px;
-        }
+        .progress-detail { font-size: 0.74rem; color: var(--text-muted); margin-top: 10px; }
 
-        /* Results */
-        .results-header {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            margin-bottom: 16px;
-        }
-        .results-title {
-            font-size: 1rem;
-            font-weight: 600;
-            color: var(--text-primary);
-        }
-        .results-count {
-            font-size: 0.75rem;
-            background: rgba(255,255,255,0.06);
-            color: var(--text-primary);
-            padding: 4px 10px;
-            border-radius: 4px;
-            font-weight: 600;
-        }
+        #resultsTable th.sorted { color: #ffffff; }
+        #resultsTable th.sorted::after { content: ' BC'; font-size: 0.55rem; }
+        #resultsTable th.sorted.asc::after { content: ' B2'; }
 
-        #resultsTable th {
-            cursor: pointer;
-            user-select: none;
-            white-space: nowrap;
-            transition: color 0.15s;
-        }
-        #resultsTable th:hover {
-            color: var(--text-primary);
-        }
-        #resultsTable th.sorted {
-            color: #ffffff;
-        }
-        #resultsTable th.sorted::after {
-            content: ' ▾';
-            font-size: 0.7em;
-        }
-        #resultsTable th.sorted.asc::after {
-            content: ' ▴';
-        }
-
-        @media (max-width: 600px) {
-            .scan-panel { padding: 16px; }
-            .scan-row { gap: 12px; }
-            .scan-field { flex: 1; min-width: 0; }
-            .scan-field input[type="number"],
-            .scan-field input[type="text"] { width: 100%; }
-            .scan-actions { flex-direction: column; align-items: stretch; }
-            .btn-scan { width: 100%; text-align: center; }
-            .btn-export { width: 100%; text-align: center; }
-            .results-header { flex-direction: column; gap: 8px; align-items: flex-start; }
+        @media (max-width: 700px) {
+            .scan-actions { display: grid; grid-template-columns: minmax(0, 1fr); }
+            .scan-actions .btn { width: 100%; }
         }
     </style>
 </head>
@@ -254,15 +76,15 @@
             <p class="page-subtitle" id="pageSubtitle">Detect unusual price and volume activity across all tradeable items</p>
         </div>
 
-        <div class="tf-tabs" id="modeTabs" style="margin-bottom: 24px">
+        <div class="section-tabs" id="modeTabs">
             <button class="tf-tab active" data-mode="spike">Spike Scanner</button>
             <button class="tf-tab" data-mode="diamond">Diamond Hands</button>
         </div>
 
-        <div class="scan-panel">
-            <div class="scan-section-label">Timeframe</div>
-            <div class="scan-row">
-                <div class="tf-tabs" id="tfTabs">
+        <div class="card" style="margin-bottom:16px">
+            <div class="card-header">
+                <span class="card-title">Scan settings</span>
+                <div class="tf-tabs" id="tfTabs" aria-label="Timeframe">
                     <button class="tf-tab" data-days="7">7D</button>
                     <button class="tf-tab active" data-days="30">30D</button>
                     <button class="tf-tab" data-days="60">60D</button>
@@ -272,49 +94,48 @@
                 </div>
             </div>
 
-            <div class="scan-section-label">Thresholds</div>
-            <div class="scan-row" id="spikeThresholds">
-                <div class="scan-field">
-                    <label>Price Spike %</label>
+            <div class="filters" id="spikeThresholds">
+                <label class="field">
+                    <span>Price Spike %</span>
                     <input type="number" id="priceThresh" value="15" min="0">
-                </div>
-                <div class="scan-field">
-                    <label>Volume Spike %</label>
+                </label>
+                <label class="field">
+                    <span>Volume Spike %</span>
                     <input type="number" id="volThresh" value="80" min="0">
-                </div>
-                <div class="scan-field">
-                    <label>Min Volume</label>
+                </label>
+                <label class="field">
+                    <span>Min Volume</span>
                     <input type="text" id="minVol" value="500" placeholder="e.g. 1k">
-                </div>
-                <div class="scan-field">
-                    <label>Min Price</label>
+                </label>
+                <label class="field">
+                    <span>Min Price</span>
                     <input type="text" id="minPrice" value="5k" placeholder="e.g. 100k">
-                </div>
-                <label class="scan-check">
+                </label>
+                <label class="checkbox-label field-wide">
                     <input type="checkbox" id="membersOnly"> Members Only
                 </label>
             </div>
-            <div class="scan-row" id="dhThresholds" style="display:none">
-                <div class="scan-field">
-                    <label>Min Price Rise %</label>
+            <div class="filters" id="dhThresholds" style="display:none">
+                <label class="field">
+                    <span>Min Price Rise %</span>
                     <input type="number" id="dhPriceRise" value="20" min="0">
-                </div>
-                <div class="scan-field">
-                    <label>Min Vol Drop %</label>
+                </label>
+                <label class="field">
+                    <span>Min Vol Drop %</span>
                     <input type="number" id="dhVolDrop" value="40" min="0">
-                </div>
-                <div class="scan-field">
-                    <label>Min Price</label>
+                </label>
+                <label class="field">
+                    <span>Min Price</span>
                     <input type="text" id="dhMinPrice" value="5k" placeholder="e.g. 100k">
-                </div>
-                <label class="scan-check">
+                </label>
+                <label class="checkbox-label field-wide">
                     <input type="checkbox" id="dhMembersOnly"> Members Only
                 </label>
             </div>
 
             <div class="scan-actions">
-                <button class="btn-scan" id="scanBtn" onclick="runScan()">Scan for Spikes</button>
-                <button class="btn-export" onclick="exportCSV()">Export CSV</button>
+                <button class="btn btn-primary" id="scanBtn" onclick="runScan()">Scan for Spikes</button>
+                <button class="btn btn-secondary" onclick="exportCSV()">Export CSV</button>
                 <span id="statusText" class="scan-status"></span>
             </div>
         </div>
@@ -333,9 +154,9 @@
         </div>
 
         <div class="card" id="resultsCard" style="display:none">
-            <div class="results-header">
-                <span class="results-title" id="resultTitle">Results</span>
-                <span class="results-count" id="resultCount"></span>
+            <div class="card-header">
+                <span class="card-title" id="resultTitle">Results</span>
+                <span class="card-badge badge-white" id="resultCount"></span>
             </div>
             <div class="table-wrap">
                 <table id="resultsTable">

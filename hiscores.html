@@ -12,35 +12,30 @@
     <link rel="preload" href="js/api.js" as="script">
     <link rel="stylesheet" href="css/style.css">
     <style>
-        .hs-search { display: flex; gap: 10px; max-width: 560px; margin-bottom: 12px; }
-        .hs-search input {
-            flex: 1; min-width: 0; padding: 12px 16px; font-size: 0.95rem;
-            background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.08);
-            border-radius: var(--radius-sm); color: var(--text-primary); font-family: inherit; outline: none;
-        }
-        .hs-search input:focus { border-color: rgba(255,255,255,0.2); }
-        .hs-recent { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 24px; min-height: 4px; }
+        .hs-search { display: flex; gap: 8px; max-width: 520px; margin-bottom: 10px; }
+        .hs-search input[type="text"] { flex: 1; min-width: 0; height: 36px; font-size: 0.9rem; }
+        .hs-search .btn { height: 36px; }
+        .hs-recent { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 16px; min-height: 4px; }
         .hs-chip {
-            padding: 4px 12px; border-radius: 20px; font-size: 0.75rem; cursor: pointer;
+            padding: 3px 11px; border-radius: 20px; font-size: 0.74rem; cursor: pointer;
             border: 1px solid rgba(255,255,255,0.08); background: rgba(255,255,255,0.03);
             color: var(--text-secondary); font-family: inherit;
         }
         .hs-chip:hover { color: var(--text-primary); background: rgba(255,255,255,0.07); }
 
-        .hs-hero { display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap; margin-bottom: 16px; }
-        .hs-name { font-size: 1.6rem; font-weight: 700; color: #fff; display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
-        .hs-sub { font-size: 0.78rem; color: var(--text-secondary); margin-top: 4px; }
+        .hs-hero { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin-bottom: 12px; }
+        .hs-name { font-size: 1.35rem; font-weight: 700; color: #fff; letter-spacing: -0.02em; display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+        .hs-sub { font-size: 0.78rem; color: var(--text-secondary); margin-top: 2px; }
         .hs-actions { display: flex; gap: 8px; flex-wrap: wrap; }
 
-        .hs-toolbar { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 16px; }
-        .hs-toolbar .label { font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.1em; color: var(--text-secondary); font-weight: 600; }
+        .hs-toolbar { display: flex; align-items: center; gap: 8px 12px; flex-wrap: wrap; margin-bottom: 10px; }
         .hs-note { font-size: 0.75rem; color: var(--text-muted); }
 
-        .hs-layout { display: grid; grid-template-columns: minmax(0, 3fr) minmax(0, 2fr); gap: 16px; align-items: start; }
+        .hs-layout { display: grid; grid-template-columns: minmax(0, 3fr) minmax(0, 2fr); gap: 12px; align-items: start; }
 
-        .hs-skills { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+        .hs-skills { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; }
         .hs-skill {
-            display: flex; gap: 10px; align-items: flex-start; padding: 10px 12px;
+            display: flex; gap: 10px; align-items: flex-start; padding: 8px 10px;
             border-radius: var(--radius-sm); border: 1px solid rgba(255,255,255,0.05);
             background: rgba(255,255,255,0.02); transition: background 0.2s, border-color 0.2s;
         }
@@ -74,21 +69,25 @@
         .hs-tile-gain { position: absolute; top: 5px; right: 6px; font-size: 0.62rem; font-weight: 600; font-variant-numeric: tabular-nums; }
         .hs-tile.unranked .hs-tile-icon, .hs-tile.unranked .hs-tile-val { opacity: 0.3; }
         .hs-tile.unranked .hs-tile-nm { opacity: 0.5; }
-        .hs-tile-controls { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+        .hs-tile-controls { display: flex; align-items: center; gap: 8px 12px; flex-wrap: wrap; }
         .hs-tile-summary { font-size: 0.75rem; color: var(--text-secondary); }
         .hs-empty { color: var(--text-muted); font-size: 0.85rem; padding: 12px 0; }
         .hs-foot { margin-top: 12px; font-size: 0.7rem; color: var(--text-muted); }
         .hs-status { text-align: center; padding: 48px 20px; color: var(--text-secondary); }
         .hs-status.error { color: var(--red); }
-        .hs-credit { margin-top: 24px; font-size: 0.72rem; color: var(--text-muted); text-align: center; }
+        .hs-credit { margin-top: 18px; font-size: 0.72rem; color: var(--text-muted); text-align: center; }
         .hs-credit a { color: var(--text-secondary); text-decoration: underline; }
 
         @media (max-width: 1200px) {
             .hs-layout { grid-template-columns: 1fr; }
         }
-        @media (max-width: 600px) {
-            .hs-search .btn-primary { width: auto; }
-            .hs-name { font-size: 1.25rem; }
+        @media (max-width: 700px) {
+            .hs-name { font-size: 1.2rem; }
+            .hs-actions { width: 100%; }
+            .hs-actions .btn { flex: 1; }
+            .hs-tile-controls { width: 100%; }
+            .hs-tile-controls .hs-tile-summary { width: 100%; }
+            .hs-tile-controls select { flex: 1; min-width: 0; }
             .hs-skills { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; }
             .hs-skill { padding: 8px; gap: 8px; }
             .hs-skill-lvl { font-size: 1rem; }
@@ -129,7 +128,7 @@
             <div class="stats-row" id="hsStats"></div>
 
             <div class="hs-toolbar">
-                <span class="label">XP gained</span>
+                <span class="section-title">XP gained</span>
                 <div class="tf-tabs" id="hsPeriod">
                     <button class="tf-tab" data-period="day">1D</button>
                     <button class="tf-tab active" data-period="week">7D</button>
@@ -156,8 +155,8 @@
                 </div>
             </div>
 
-            <div class="card" style="margin-top:16px">
-                <div class="card-header" style="flex-wrap:wrap;gap:10px">
+            <div class="card" style="margin-top:12px">
+                <div class="card-header">
                     <span class="card-title">Bosses</span>
                     <div class="hs-tile-controls">
                         <span class="hs-tile-summary" id="hsBossSummary"></span>
