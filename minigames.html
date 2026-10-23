@@ -21,19 +21,23 @@
         /* Skills | Minigames: section tabs, as on Trading and Scanner */
         .calc-switch a.tf-tab:hover { opacity: 1; }
 
-        .mg-picker { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 6px; margin-bottom: 14px; }
-        .calc-skill {
-            display: flex; align-items: center; gap: 8px; padding: 6px 10px; cursor: pointer; min-width: 0;
-            border-radius: var(--radius-sm); border: 1px solid rgba(255,255,255,0.05);
-            background: rgba(255,255,255,0.02); color: var(--text-secondary);
-            font-family: inherit; font-size: 0.8rem; text-align: left; transition: all 0.2s;
+        /* Overview: every activity ranked at your levels; click a row for its calculator */
+        #mgOverview tbody tr { cursor: pointer; }
+        #mgOverview tbody tr.selected { background: rgba(255,255,255,0.05); }
+        #mgOverview tbody tr.selected td:first-child { box-shadow: inset 2px 0 0 #ffffff; }
+        @media (max-width: 700px) {
+            /* Phone rows are grids, so the marker goes on the row */
+            #mgOverview tbody tr.selected { box-shadow: inset 2px 0 0 #ffffff; }
+            #mgOverview tbody tr.selected td:first-child { box-shadow: none; }
         }
-        .calc-skill:hover { background: rgba(255,255,255,0.05); color: var(--text-primary); }
-        .calc-skill.active { background: rgba(255,255,255,0.1); border-color: rgba(255,255,255,0.25); color: #fff; box-shadow: 0 0 14px rgba(255,255,255,0.06); }
-        .calc-skill img { image-rendering: pixelated; flex-shrink: 0; filter: drop-shadow(0 0 1px rgba(255,255,255,0.45)); }
-        .calc-skill .item-icon { background: transparent; }
-        .calc-skill .nm { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-        .calc-skill .sk { width: 14px; height: 14px; opacity: 0.55; }
+        #mgOverview tbody tr.locked td { opacity: 0.45; }
+        #mgOverview .item-cell img { image-rendering: pixelated; }
+        .mg-skill { display: inline-flex; align-items: center; gap: 6px; }
+        .mg-skill img { width: 16px; height: 16px; image-rendering: pixelated; opacity: 0.7; }
+        .mg-needs { color: var(--red); font-size: 0.7rem; }
+        .mg-back { font-size: 0.72rem; color: var(--text-secondary); white-space: nowrap; }
+        .calc-rsn-status:empty { display: none; }
+        .calc-rsn-status { margin-bottom: 8px; }
 
         .calc-form { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px 16px; }
         .calc-form + .calc-form { margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--line); }
@@ -75,8 +79,6 @@
             .mg-tables { grid-template-columns: minmax(0, 1fr); }
         }
         @media (max-width: 700px) {
-            .mg-picker { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 4px; }
-            .calc-skill .sk { display: none; }
             .calc-form { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 10px; }
             .calc-form > .calc-field:first-child, .calc-form > .calc-field.check, .calc-form > .calc-field:has(.hint) { grid-column: 1 / -1; }
             .calc-pair input.lvl, .calc-pair input[type="number"].lvl { width: 52px; }
@@ -92,22 +94,45 @@
         </div>
         <div class="section-tabs calc-switch"><a class="tf-tab" href="calculators.html">Skills</a><a class="tf-tab active" href="minigames.html">Minigames</a></div>
 
-        <div class="mg-picker" id="mgPicker"></div>
-
-        <div class="card" style="margin-bottom:12px">
+        <div class="card" id="mgOverviewCard" style="margin-bottom:16px">
             <div class="card-header">
-                <span class="card-title" id="mgTitle">Minigame Calculator</span>
+                <span class="card-title">Best activities for you</span>
                 <span class="card-badge badge-green">Live GE prices · 2% tax</span>
             </div>
-            <div class="calc-form">
-                <label class="calc-field">
+            <div class="filters">
+                <label class="field field-grow">
                     <span>RuneScape name</span>
                     <div class="calc-pair">
-                        <input type="text" id="mgRsn" class="xp" placeholder="Optional — fills your levels" maxlength="12" autocomplete="off" spellcheck="false">
+                        <input type="text" id="mgRsn" class="xp" placeholder="Optional — ranks at your levels" maxlength="12" autocomplete="off" spellcheck="false">
                         <button class="btn btn-secondary" id="mgLoad" type="button">Load</button>
                     </div>
-                    <div class="calc-rsn-status" id="mgRsnStatus"></div>
                 </label>
+                <label class="field">
+                    <span>Show</span>
+                    <select id="mgShow">
+                        <option value="all">All activities</option>
+                        <option value="can">Ones I can do</option>
+                    </select>
+                </label>
+                <label class="field">
+                    <span>Prices</span>
+                    <select id="mgPrices">
+                        <option value="instant">Instant (buy high, sell low)</option>
+                        <option value="patient">Patient offers (buy low, sell high)</option>
+                    </select>
+                </label>
+            </div>
+            <div class="calc-rsn-status" id="mgRsnStatus"></div>
+            <div class="table-wrap" id="mgOverview"></div>
+            <div class="card-note" id="mgOverviewNote"></div>
+        </div>
+
+        <div class="card" id="mgDetail" style="margin-bottom:12px">
+            <div class="card-header">
+                <span class="card-title" id="mgTitle">Minigame Calculator</span>
+                <a href="#mgOverviewCard" class="mg-back" id="mgBack">↑ All activities</a>
+            </div>
+            <div class="calc-form">
                 <div class="calc-field" id="mgCurField">
                     <span id="mgCurLabel">Current level / XP</span>
                     <div class="calc-pair">
@@ -141,13 +166,6 @@
                     <input type="text" id="mgAmount" autocomplete="off">
                     <span class="hint" id="mgAmountHint"></span>
                 </label>
-                <label class="calc-field">
-                    <span>Prices</span>
-                    <select id="mgPrices">
-                        <option value="instant">Instant (buy high, sell low)</option>
-                        <option value="patient">Patient offers (buy low, sell high)</option>
-                    </select>
-                </label>
             </div>
             <div class="calc-form" id="mgInputs"></div>
         </div>
@@ -164,6 +182,7 @@
 
     <script src="js/api.js"></script>
     <script src="js/skills.js"></script>
+    <script src="js/minigames-index.js"></script>
     <script src="data/minigames.js"></script>
     <script>
     (async () => {
@@ -388,7 +407,7 @@
 
         const CALCS = [
             {
-                key: 'blastFurnace', name: 'Blast Furnace', skill: 'smithing', min: 30, icon: 'Runite bar', units: ['bar', 'bars'], data: BF,
+                key: 'blastFurnace', min: 30, units: ['bar', 'bars'], data: BF,
                 inputs: [
                     { id: 'bar', label: 'Bar', type: 'select', def: 'Steel', options: () => BF.bars.map(b => [b.name, `${b.name} (level ${b.level})`]) },
                     { id: 'coalBag', label: 'Coal bag', type: 'check', def: true, text: 'Using a coal bag', show: v => !!bfBar(v).coalBag },
@@ -410,7 +429,7 @@
                 }
             },
             {
-                key: 'cannonballs', name: 'Cannonballs', skill: 'smithing', min: 35, icon: 'Steel cannonball', units: ['bar', 'bars'], data: CB,
+                key: 'cannonballs', min: 35, units: ['bar', 'bars'], data: CB,
                 inputs: [
                     { id: 'ball', label: 'Cannonball', type: 'select', def: 'Steel cannonball', options: () => CB.types.map(t => [t.ball, `${t.ball} (level ${t.level})`]) },
                     { id: 'mould', label: 'Setup', type: 'select', def: 'double', options: () => [['single', 'Furnace + ammo mould'], ['double', 'Furnace + double ammo mould'], ['ancient', `Ancient furnace + double mould (${CB.ancientLevel} Sailing)`]] },
@@ -428,7 +447,7 @@
                 }
             },
             {
-                key: 'giantsFoundry', name: "Giants' Foundry", skill: 'smithing', min: GF.minLevel, icon: 'Mithril bar', units: ['sword', 'swords'], data: GF,
+                key: 'giantsFoundry', min: GF.minLevel, units: ['sword', 'swords'], data: GF,
                 inputs: [
                     { id: 'metal1', label: 'First metal', type: 'select', def: 'Mithril', options: () => Object.keys(GF.barTier).filter(m => m !== 'None').map(m => [m, m + ' bar']) },
                     { id: 'bars1', label: 'Bars of the first metal (of 28)', type: 'number', def: 14, min: 0, max: 28 },
@@ -461,7 +480,7 @@
                     + 'Items to melt: the wiki calculator\'s list (a platebody gives 4 bars, most two-bar items 2).']
             },
             {
-                key: 'superglass', name: 'Superglass Make', skill: 'crafting', icon: 'Molten glass', units: ['cast', 'casts'], data: SG,
+                key: 'superglass', units: ['cast', 'casts'], data: SG,
                 inputs: [
                     { id: 'method', label: 'Ingredients', type: 'select', def: 'gs3pickup', options: () => SG.methods.map(m => [m.key, m.name]) },
                     { id: 'staff', label: 'Staff', type: 'select', def: 'smoke', options: () => [['smoke', 'Smoke battlestaff (no air or fire runes)'], ['air', 'Staff of air (no air runes)'], ['none', 'No staff']] },
@@ -502,7 +521,7 @@
                 }
             },
             {
-                key: 'wintertodt', name: 'Wintertodt', skill: 'firemaking', min: WT.minLevel, icon: 'Bruma torch', units: ['game', 'games'], data: WT,
+                key: 'wintertodt', min: WT.minLevel, units: ['game', 'games'], data: WT,
                 inputs: [
                     { id: 'strategy', label: 'Strategy', type: 'select', def: 'roots', options: () => [['roots', 'Feed bruma roots'], ['kindling', 'Fletch roots into kindling']] },
                     { id: 'points', label: 'Points per game', type: 'rate', auto: c => WT.defaults[c.v.strategy].points,
@@ -545,7 +564,7 @@
                 ]
             },
             {
-                key: 'tempoross', name: 'Tempoross', skill: 'fishing', min: TP.minLevel, icon: 'Dragon harpoon', units: ['permit', 'permits'], data: TP,
+                key: 'tempoross', min: TP.minLevel, units: ['permit', 'permits'], data: TP,
                 inputs: [
                     { id: 'harpoon', label: 'Harpoon', type: 'select', def: 'Dragon', options: () => TP.rates.raw.map(r => [r.harpoon, r.harpoon]) },
                     { id: 'cook', label: 'Harpoonfish', type: 'check', def: false, text: 'Cooking the harpoonfish' },
@@ -574,7 +593,7 @@
                 ]
             },
             {
-                key: 'guardians', name: 'Guardians of the Rift', skill: 'runecrafting', min: GR.minLevel, icon: 'Catalytic talisman', units: ['search', 'searches'], data: GR,
+                key: 'guardians', min: GR.minLevel, units: ['search', 'searches'], data: GR,
                 inputs: [
                     { id: 'rate', label: 'Reward searches per hour', type: 'rate', auto: () => GR.searchesPerHour, hint: () => 'From the wiki\'s money making guide' },
                     { id: 'xph', label: 'Runecraft XP per hour', type: 'rate', auto: (c, L) => grBand(L).rc, hint: () => 'Blank: the Runecraft training guide\'s rate for your level band' },
@@ -603,7 +622,7 @@
                 ]
             },
             {
-                key: 'motherlode', name: 'Motherlode Mine', skill: 'mining', min: ML.minLevel, icon: 'Adamantite ore', units: ['pay-dirt', 'pay-dirt'], data: ML,
+                key: 'motherlode', min: ML.minLevel, units: ['pay-dirt', 'pay-dirt'], data: ML,
                 inputs: [
                     { id: 'rate', label: 'Pay-dirt per hour', type: 'rate', auto: (c, L) => Math.round(between(ML.payDirtPerHour, L)), hint: () => 'Blank: the wiki\'s rate for your level (upper floor from 57, dragon pickaxe from 61)' },
                     { id: 'diary', label: 'Falador diary', type: 'check', def: false, text: 'Elite Falador diary (~1–2% better ores)' }
@@ -620,7 +639,7 @@
                 ]
             },
             {
-                key: 'birdhouses', name: 'Bird houses', skill: 'hunter', min: BH.types[0].level, icon: 'Bird nest (empty)', units: ['run', 'runs'], data: BH,
+                key: 'birdhouses', min: BH.types[0].level, units: ['run', 'runs'], data: BH,
                 inputs: [
                     { id: 'type', label: 'Bird house', type: 'select', def: 'auto', options: () => [['auto', 'Best for my Hunter level']].concat(BH.types.map(t => [t.name, `${t.item} (level ${t.level})`])) },
                     { id: 'seed', label: 'Seeds', type: 'select', def: 'auto', options: () => [['auto', 'Cheapest at live prices']].concat(BH.seeds.map(s => [s.seed, `${s.seed} (${s.qty} a house)`])) },
@@ -655,7 +674,7 @@
                 }
             },
             {
-                key: 'herbiboar', name: 'Herbiboar', skill: 'hunter', min: HB.minLevel, icon: 'Grimy ranarr weed', units: ['catch', 'catches'], data: HB,
+                key: 'herbiboar', min: HB.minLevel, units: ['catch', 'catches'], data: HB,
                 inputs: [
                     { id: 'herblore', label: 'Herblore level', type: 'level', skill: 'herblore', def: HB.herbloreLevel },
                     { id: 'secateurs', label: 'Magic secateurs', type: 'check', def: false, text: 'Magic secateurs (one more herb)' },
@@ -683,7 +702,7 @@
                 ]
             },
             {
-                key: 'titheFarm', name: 'Tithe Farm', skill: 'farming', min: TF.seeds[0].level, icon: null, units: ['batch of 100 fruit', 'batches of 100 fruit'], data: TF,
+                key: 'titheFarm', min: TF.seeds[0].level, units: ['batch of 100 fruit', 'batches of 100 fruit'], data: TF,
                 inputs: [
                     { id: 'seed', label: 'Seed', type: 'select', def: 'auto', options: () => [['auto', 'Best for my Farming level']].concat(TF.seeds.map(s => [s.seed, `${s.seed} (level ${s.level})`])) },
                     { id: 'outfit', label: "Farmer's outfit", type: 'check', def: false, text: "Wearing the farmer's outfit" },
@@ -707,7 +726,7 @@
                 }
             },
             {
-                key: 'pickpocketing', name: 'Pickpocketing', skill: 'thieving', min: PP.npcs[0].level, icon: 'Ranarr seed', units: ['pickpocket', 'pickpockets'], data: PP,
+                key: 'pickpocketing', min: PP.npcs[0].level, units: ['pickpocket', 'pickpockets'], data: PP,
                 inputs: [
                     { id: 'npc', label: 'Pickpocket', type: 'select', def: 'Master Farmer', options: () => PP.npcs.map(n => [n.name, `${n.name} (level ${n.level})`]) },
                     { id: 'gear', label: 'Success boost', type: 'select', def: 'Normal', options: v => ppNpc(v).chart.map(g => [g.label, g.label === 'Normal' ? 'None' : g.label + (g.req > ppNpc(v).level ? ` (level ${g.req})` : '')]) },
@@ -743,7 +762,7 @@
                 }
             },
             {
-                key: 'zmi', name: 'Ourania Altar (ZMI)', skill: 'runecrafting', min: 1, icon: 'Blood rune', units: ['essence', 'essence'], data: ZM,
+                key: 'zmi', min: 1, units: ['essence', 'essence'], data: ZM,
                 inputs: [
                     { id: 'essence', label: 'Essence', type: 'select', def: 'Pure essence', options: () => [['Pure essence', 'Pure essence'], ['Daeyalt essence', `Daeyalt essence (${ZM.daeyalt}× XP)`]] },
                     { id: 'raiments', label: 'Raiments of the Eye', type: 'select', def: '0', options: () => [0, 1, 2, 3, 4].map(n => [String(n), n === 0 ? 'None' : n === 4 ? 'Full set (+60% runes)' : `${n} piece${n > 1 ? 's' : ''} (+${n * 10}% runes)`]) },
@@ -767,7 +786,7 @@
                     'Trip costs are the money making guide\'s per-essence figures (runes paid to the banker, the Ourania Teleport, stamina potions).']
             },
             {
-                key: 'sepulchre', name: 'Hallowed Sepulchre', skill: 'agility', min: HS.floors[0].level, icon: 'Strange old lockpick (full)', units: ['run', 'runs'], data: HS,
+                key: 'sepulchre', min: HS.floors[0].level, units: ['run', 'runs'], data: HS,
                 inputs: [
                     { id: 'floor', label: 'Down to floor', type: 'select', def: '5', options: () => HS.floors.map(f => [String(f.floor), `Floor ${f.floor} (level ${f.level})`]) },
                     { id: 'loot', label: 'Coffins', type: 'check', def: true, text: 'Loot the coffins worth looting', show: v => +v.floor >= 3 },
@@ -788,7 +807,7 @@
                 }
             },
             {
-                key: 'blastMine', name: 'Blast mine', skill: 'mining', min: BM.minLevel, icon: 'Dynamite', units: ['dynamite', 'dynamite'], data: BM,
+                key: 'blastMine', min: BM.minLevel, units: ['dynamite', 'dynamite'], data: BM,
                 inputs: [
                     { id: 'rate', label: 'Dynamite per hour', type: 'rate', auto: () => BM.perHour, hint: () => 'The Blast mine page\'s assumption' }
                 ],
@@ -803,7 +822,7 @@
                 ]
             },
             {
-                key: 'valeTotems', name: 'Vale Totems', skill: 'fletching', min: VT.logs[0].level, icon: 'Redwood logs', units: ['totem', 'totems'], data: VT,
+                key: 'valeTotems', min: VT.logs[0].level, units: ['totem', 'totems'], data: VT,
                 inputs: [
                     { id: 'log', label: 'Logs', type: 'select', def: 'auto', options: () => [['auto', 'Best for my Fletching level']].concat(VT.logs.map(l => [l.type, `${l.log} (level ${l.level})`])) },
                     { id: 'decs', label: 'Decorations per totem', type: 'select', def: '4', options: () => [0, 1, 2, 3, 4].map(n => [String(n), String(n)]) },
@@ -843,7 +862,7 @@
                 }
             },
             {
-                key: 'pyramidPlunder', name: 'Pyramid Plunder', skill: 'thieving', min: PL.rooms[0].level, icon: "Pharaoh's sceptre (uncharged)", units: ['run', 'runs'], data: PL,
+                key: 'pyramidPlunder', min: PL.rooms[0].level, units: ['run', 'runs'], data: PL,
                 inputs: [
                     { id: 'chest', label: 'Loot golden chests from room', type: 'select', def: '1', options: () => PL.rooms.map(r => [String(r.room), `Room ${r.room}`]) },
                     { id: 'sarc', label: 'Loot sarcophagi from room', type: 'select', def: '4', options: () => PL.rooms.map(r => [String(r.room), `Room ${r.room}`]).concat([['9', 'Never']]) },
@@ -871,7 +890,7 @@
                 ]
             },
             {
-                key: 'hespori', name: 'Hespori', skill: 'farming', min: HE.minLevel, icon: 'Attas seed', units: ['Hespori', 'Hespori'], data: HE,
+                key: 'hespori', min: HE.minLevel, units: ['Hespori', 'Hespori'], data: HE,
                 inputs: [
                     { id: 'outfit', label: "Farmer's outfit", type: 'check', def: false, text: "Wearing the farmer's outfit" },
                     { id: 'rate', label: 'Hours to grow', type: 'rate', auto: () => HE.growMinutes / 60, hint: () => 'The Farming info time; it grows in 22–32 hours depending on when it\'s planted' }
@@ -886,7 +905,7 @@
                     'The Tangleroot chance improves with Farming level (the wiki\'s formula). Hespori seeds aren\'t on the GE, so they aren\'t costed.']
             },
             {
-                key: 'zalcano', name: 'Zalcano', skill: null, icon: 'Crystal tool seed', units: ['kill', 'kills'], data: ZA,
+                key: 'zalcano', units: ['kill', 'kills'], data: ZA,
                 inputs: [
                     { id: 'basis', label: 'Loot quantities', type: 'select', def: 'guide', options: () => [['guide', 'Money making guide average (team kills)'], ['lo', 'Low end of the drop ranges'], ['mid', 'Middle of the drop ranges'], ['hi', 'High end (top contribution)']] },
                     { id: 'mvp', label: 'MVP', type: 'check', def: false, text: 'MVP (+10% non-unique loot)' },
@@ -910,7 +929,7 @@
                 notes: () => [`Loot scales with your contribution. The drop table's ranges are crowd-sourced; the money making guide's averages fit a typical team kill. Crystal shards: 2 when eligible for uniques, 3 as MVP; infernal ashes go to the MVP.`,
                     'Choosing Mining XP instead of loot (talk to Rhiannon) isn\'t modelled: the wiki has no confirmed XP formula.']
             }
-        ];
+        ].map(x => Object.assign({}, MINIGAMES.find(m => m.key === x.key), x));      // name, skill and icon from js/minigames-index.js
         function bfBar(v) { return BF.bars.find(b => b.name === v.bar) || BF.bars[0]; }
         function ppNpc(v) { return PP.npcs.find(n => n.name === v.npc) || PP.npcs[0]; }
         function hsFloor(v) { return HS.floors.find(f => String(f.floor) === String(v.floor)) || HS.floors[HS.floors.length - 1]; }
@@ -919,18 +938,21 @@
         // ---------- State ----------
         const params = new URLSearchParams(location.search);
         const state = {
-            calc: CALCS.some(x => x.key === params.get('calc')) ? params.get('calc') : 'blastFurnace',
+            calc: CALCS.some(x => x.key === params.get('calc')) ? params.get('calc') : null,
             xp: {},                   // current XP per skill (typed or from the hiscores)
             tgt: {},                  // target XP per skill
             values: {},               // calculator inputs, kept when switching
             amount: {}, goal: {},
-            sort: { col: 'total', dir: 'desc' }
+            touched: {},              // inputs you've changed yourself, per calculator
+            sort: { col: 'total', dir: 'desc' },
+            rank: { col: 'gph', dir: 'desc' }      // overview order
         };
         let player = null;
         const calc = () => CALCS.find(x => x.key === state.calc);
         const clampXp = xp => Math.max(0, Math.min(OSRS.MAX_XP, Math.floor(xp) || 0));
         // Typed or loaded XP; until then the activity's own requirement
-        const curXp = () => state.xp[calc().skill] ?? OSRS.xpForLevel(calc().min || 1);
+        const curXpOf = x => state.xp[x.skill] ?? OSRS.xpForLevel(x.min || 1);
+        const curXp = () => curXpOf(calc());
         const tgtXp = () => {
             const k = calc().skill, cur = curXp();
             if (state.tgt[k] == null || state.tgt[k] <= cur) {
@@ -943,20 +965,100 @@
         // A target needs a skill and room to grow; otherwise it's a set amount
         const goalOf = x => !x.skill || curXp() >= OSRS.MAX_XP ? 'amount' : (state.goal[x.key] || 'target');
 
-        // ---------- Picker ----------
-        function renderPicker() {
-            $('mgPicker').innerHTML = CALCS.map(x => {
-                const it = x.icon && itemFor(x.icon);
-                const icon = it ? GE.imgTag(it, 22) : `<img src="${OSRS.iconUrl(x.skill || 'mining')}" width="20" height="20" alt="">`;
-                const sk = x.skill ? `<img class="sk" src="${OSRS.iconUrl(x.skill)}" width="14" height="14" alt="" title="${esc(OSRS.skillName(x.skill))}">` : '';
-                return `<button class="calc-skill${x.key === state.calc ? ' active' : ''}" data-calc="${x.key}" title="${esc(x.name)}">${icon}<span class="nm">${esc(x.name)}</span>${sk}</button>`;
-            }).join('');
-            $('mgPicker').querySelectorAll('.calc-skill').forEach(b => b.onclick = () => select(b.dataset.calc));
+        // ---------- Overview ----------
+        // An hour of each activity at your level with its current settings: what it earns and the XP it gives
+        const VARIANT = {
+            blastFurnace: c => bfBar(c.v).name + (c.v.coalBag && bfBar(c.v).coalBag ? ', coal bag' : ''),
+            cannonballs: c => c.v.ball.replace(' cannonball', '') + ', ' + ({ single: 'ammo mould', double: 'double mould', ancient: 'ancient furnace' }[c.v.mould] || ''),
+            giantsFoundry: c => { const m = gfMetals(c.v); return m.a2 ? `${m.a1} ${c.v.metal1} + ${m.a2} ${c.v.metal2}` : `28 ${c.v.metal1}`; },
+            superglass: c => sgMethod(c.v).name.split(',')[0],
+            wintertodt: c => c.v.strategy === 'kindling' ? 'kindling' : 'roots',
+            tempoross: c => c.v.harpoon + ' harpoon' + (c.v.cook ? ', cooking' : ''),
+            zmi: c => c.v.essence.replace(' essence', ''),
+            pickpocketing: c => ppNpc(c.v).name,
+            sepulchre: c => 'to floor ' + c.v.floor,
+            birdhouses: c => (c.v.type === 'auto' ? bhBest(c.level).name : c.v.type),
+            titheFarm: c => tfSeed(c.level, c.v).seed.replace(' seed', ''),
+            valeTotems: c => (c.v.log === 'auto' ? (VT.logs.filter(l => l.level <= c.level).pop() || VT.logs[0]).type : c.v.log) + ' logs'
+        };
+        // Hours that aren't hours of play
+        const PER_HOUR = { birdhouses: 'per hour of runs', hespori: 'per hour of growing' };
+        // Options the overview picks for you (the most GP an hour you have the level for) until you choose one
+        const BEST = {
+            blastFurnace: { input: 'bar', options: L => BF.bars.filter(b => b.level <= L).map(b => b.name) },
+            cannonballs: { input: 'ball', options: L => CB.types.filter(t => t.level <= L).map(t => t.ball) },
+            pickpocketing: { input: 'npc', options: L => PP.npcs.filter(n => n.level <= L).map(n => n.name) },
+            sepulchre: { input: 'floor', options: L => HS.floors.filter(f => f.level <= L).map(f => String(f.floor)) }
+        };
+
+        function gpPerHour(x, c) {
+            const u = x.unit(c.level, c);
+            let value = u.gp || 0, cost = 0;
+            for (const [i, q] of u.loot || []) { const v = valueOf(i); if (v.net) value += v.net * q; }
+            for (const [i, q] of u.cost || []) { const p = buyPrice(i); if (p != null) cost += p * q; }
+            for (const [, g] of u.fees || []) cost += g;
+            return { u, gph: (value - cost) * u.rate };
         }
 
+        function hourOf(x) {
+            const c = context(x);
+            const best = BEST[x.key];
+            if (best && !(state.touched[x.key] || {})[best.input]) {
+                // Try each option on the calculator's own settings and keep the best one there
+                let top = null;
+                for (const opt of best.options(c.level)) {
+                    c.v[best.input] = opt;
+                    const g = gpPerHour(x, c).gph;
+                    if (!top || g > top.g) top = { opt, g };
+                }
+                if (top) c.v[best.input] = top.opt;
+            }
+            const h = gpPerHour(x, c), u = h.u;
+            const xph = x.skill ? ((u.xp || {})[x.skill] || 0) * u.rate : null;
+            const gph = x.noGp ? null : h.gph;
+            return {
+                x, level: c.level, gph, xph, gpxp: gph != null && xph ? gph / xph : null,
+                locked: x.skill ? c.level < (x.min || 1) : false, variant: VARIANT[x.key] ? VARIANT[x.key](c) : ''
+            };
+        }
+
+        function renderOverview() {
+            const rows = CALCS.map(hourOf).filter(r => $('mgShow').value !== 'can' || !r.locked);
+            const { col, dir } = state.rank, d = dir === 'asc' ? 1 : -1;
+            rows.sort((a, b) => col === 'name' ? a.x.name.localeCompare(b.x.name) * d
+                : (a[col] == null) - (b[col] == null) || ((a[col] ?? 0) - (b[col] ?? 0)) * d || a.x.name.localeCompare(b.x.name));
+            const th = (k, label) => `<th data-rank="${k}" class="${col === k ? 'sorted-' + dir : ''}">${label}</th>`;
+            let h = '<table class="calc-table"><thead><tr>' + th('name', 'Activity') + th('level', 'Your level') + th('gph', 'GP / hour') + th('xph', 'XP / hour') + th('gpxp', 'GP / XP') + '</tr></thead><tbody>';
+            for (const r of rows) {
+                const x = r.x, it = x.icon && itemFor(x.icon);
+                const icon = it ? GE.imgTag(it, 22) : `<img src="${OSRS.iconUrl(x.skill || 'mining')}" width="22" height="22" class="item-icon" alt="">`;
+                const tags = [r.variant, PER_HOUR[x.key]].filter(Boolean).map(t => `<span class="tag-sm">${esc(t)}</span>`).join('');
+                const level = x.skill
+                    ? `<span class="mg-skill"><img src="${OSRS.iconUrl(x.skill)}" alt="" title="${esc(OSRS.skillName(x.skill))}">${r.level}${r.locked ? ` <span class="mg-needs">needs ${x.min}</span>` : ''}</span>`
+                    : '<span class="muted">—</span>';
+                const gpxp = r.gpxp == null ? '<span class="muted">—</span>' : `<span class="${r.gpxp > 0 ? 'positive' : r.gpxp < 0 ? 'negative' : 'neutral'}">${r.gpxp.toFixed(2)}</span>`;
+                h += `<tr class="${x.key === state.calc ? 'selected' : ''}${r.locked ? ' locked' : ''}" data-calc="${x.key}">`
+                    + `<td><div class="item-cell">${icon}<span class="item-name">${esc(x.name)}</span>${tags}</div></td>`
+                    + `<td>${level}</td><td>${x.noGp ? '<span class="muted">points</span>' : signed(r.gph)}</td>`
+                    + `<td>${r.xph == null ? '<span class="muted">—</span>' : GE.fmtGp(Math.round(r.xph))}</td><td>${gpxp}</td></tr>`;
+            }
+            if (!rows.length) h += '<tr><td colspan="5" class="muted">None at your levels yet</td></tr>';
+            $('mgOverview').innerHTML = h + '</tbody></table>';
+            $('mgOverview').querySelectorAll('th[data-rank]').forEach(th => th.onclick = () => {
+                const k = th.dataset.rank;
+                state.rank = state.rank.col === k ? { col: k, dir: state.rank.dir === 'asc' ? 'desc' : 'asc' } : { col: k, dir: k === 'name' ? 'asc' : 'desc' };
+                renderOverview();
+            });
+            $('mgOverview').querySelectorAll('tbody tr[data-calc]').forEach(tr => tr.onclick = () => select(tr.dataset.calc, true));
+            $('mgOverviewNote').innerHTML = (player ? `Ranked at ${esc(player.displayName)}'s levels. ` : 'Load your name to rank them at your levels; until then each one starts at its requirement. ')
+                + 'Each row is an hour at that calculator\'s settings (the tags). Where there\'s a choice of bar, cannonball, pickpocket or floor, it takes the most profitable one you have the level for until you pick one yourself. Click a row for the full calculator.';
+            return rows;
+        }
+        $('mgShow').onchange = () => renderOverview();
+        $('mgBack').onclick = e => { e.preventDefault(); $('mgOverviewCard').scrollIntoView({ behavior: 'smooth', block: 'start' }); };
+
         // ---------- Inputs ----------
-        function values() {
-            const x = calc();
+        function values(x = calc()) {
             const v = state.values[x.key] = state.values[x.key] || {};
             for (const inp of x.inputs) {
                 if (v[inp.id] !== undefined) continue;
@@ -971,10 +1073,10 @@
             return s && s.experience >= 0 ? OSRS.levelForXp(s.experience, 99) : null;
         }
 
-        function context() {
-            const x = calc(), v = values();
+        function context(x = calc()) {
+            const v = values(x);
             const c = {
-                v, level: Math.min(99, OSRS.levelForXp(curXp(), 99)),
+                v, level: Math.min(99, OSRS.levelForXp(curXpOf(x), 99)),
                 lvl: skill => {
                     const inp = x.inputs.find(i => i.type === 'level' && i.skill === skill);
                     if (inp) return clamp(Math.floor(+v[inp.id] || 1), 1, 99);
@@ -1018,6 +1120,7 @@
                 el.addEventListener(el.type === 'text' ? 'input' : 'change', () => {
                     const inp = x.inputs.find(i => i.id === el.dataset.in);
                     v[inp.id] = el.type === 'checkbox' ? el.checked : el.value;
+                    (state.touched[x.key] = state.touched[x.key] || {})[inp.id] = true;
                     if (el.type !== 'text') renderInputs();          // dependent fields and hints
                     render();
                 });
@@ -1232,6 +1335,7 @@
                 $('mgStats').innerHTML = '';
                 $('mgTables').innerHTML = `<div class="card calc-status">${sim.done ? 'Target is already reached — set a higher target, or choose "A set amount" as the goal.' : 'This setup gives no XP in this skill.'}</div>`;
                 $('mgNote').innerHTML = note.join('<br>');
+                renderOverview();
                 return;
             }
             const loot = lootTable(sim, x), cost = costTable(sim);
@@ -1259,24 +1363,27 @@
             for (const [label, value, sub] of (x.stats ? x.stats(sim, c) : [])) cards.push(statCard(label, value, sub));
             $('mgStats').innerHTML = cards.join('');
             $('mgNote').innerHTML = note.concat(['Loot is the expected (average) amount. Sell values take the 2% GE tax off; items that aren\'t on the GE show their quantity only.']).join('<br>');
+            renderOverview();
         }
 
-        function select(key) {
+        function select(key, scroll) {
             state.calc = key;
             state.sort = { col: 'total', dir: 'desc' };
-            renderPicker();
             updateUrl();
             syncGoal();
             renderInputs();
             render();
+            if (scroll) $('mgDetail').scrollIntoView({ behavior: 'smooth', block: 'start' });
         }
 
         // ---------- Boot ----------
-        renderPicker();
-        select(state.calc);
+        // A link from the Calculators page opens its calculator; otherwise the best-ranked one
+        const linked = state.calc;
+        select(linked || renderOverview()[0].x.key);
+        if (linked) requestAnimationFrame(() => $('mgDetail').scrollIntoView({ block: 'start' }));
         const rsn = params.get('rsn') || (() => { try { return localStorage.getItem(RSN_KEY); } catch (e) { return null; } })();
         if (rsn) { $('mgRsn').value = rsn; loadPlayer(rsn); }
-        window.__mg = { CALCS, state, context, simulate, select, valueOf, buyPrice, loadPlayer };   // for the self-check
+        window.__mg = { CALCS, state, context, simulate, select, valueOf, buyPrice, loadPlayer, renderOverview, hourOf };   // for the self-check
     })();
     </script>
 </body>

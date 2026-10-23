@@ -19,6 +19,9 @@
     </script>
     <style>
         .calc-switch a.tf-tab:hover { opacity: 1; }
+        /* Shortcuts to the Minigames page */
+        a.calc-skill:hover { opacity: 1; }
+        .mg-all { font-size: 0.74rem; color: var(--text-secondary); }
         .calc-skills { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 6px; margin-bottom: 14px; }
         .calc-skill {
             display: flex; align-items: center; gap: 8px; padding: 6px 10px; cursor: pointer;
@@ -79,6 +82,9 @@
             .calc-skills { grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 4px; }
             .calc-skill { justify-content: center; padding: 8px 0; }
             .calc-skill .nm, .calc-skill .lv { display: none; }
+            .mg-links { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+            .mg-links .calc-skill { justify-content: flex-start; padding: 6px 8px; }
+            .mg-links .calc-skill .nm { display: block; }
             .calc-form { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 10px; }
             .calc-form > .calc-field:first-child { grid-column: 1 / -1; }
             .calc-pair input.lvl { width: 52px; }
@@ -95,6 +101,9 @@
         <div class="section-tabs calc-switch"><a class="tf-tab active" href="calculators.html">Skills</a><a class="tf-tab" href="minigames.html">Minigames</a></div>
 
         <div class="calc-skills" id="calcSkills"></div>
+
+        <div class="section-bar"><span class="section-title">Minigames &amp; activities</span><a class="mg-all" href="minigames.html">Rank all of them for your levels →</a></div>
+        <div class="calc-skills mg-links" id="calcMinigames"></div>
 
         <div class="card" style="margin-bottom:12px">
             <div class="card-header">
@@ -178,6 +187,7 @@
 
     <script src="js/api.js"></script>
     <script src="js/skills.js"></script>
+    <script src="js/minigames-index.js"></script>
     <script>
     (async () => {
         document.getElementById('nav').innerHTML = GE.navHTML('Calculators');
@@ -679,8 +689,18 @@
             $(id).addEventListener(id === 'calcSearch' ? 'input' : 'change', () => { state.shown = GE.SHOW_STEP; render(); });
         });
 
+        // ---------- Minigames shortcuts ----------
+        function renderMinigameLinks() {
+            $('calcMinigames').innerHTML = MINIGAMES.map(m => {
+                const it = m.icon && itemFor(m.icon);
+                const icon = it ? GE.imgTag(it, 20) : `<img src="${OSRS.iconUrl(m.skill || 'mining')}" width="20" height="20" alt="">`;
+                return `<a class="calc-skill" href="minigames.html?calc=${m.key}" title="${esc(m.name)}">${icon}<span class="nm">${esc(m.name)}</span></a>`;
+            }).join('');
+        }
+
         // ---------- Boot ----------
         renderSkillPicker();
+        renderMinigameLinks();
         const rsn = params.get('rsn') || (() => { try { return localStorage.getItem(RSN_KEY); } catch (e) { return null; } })();
         if (rsn) $('calcRsn').value = rsn;
         await selectSkill(state.skill);
